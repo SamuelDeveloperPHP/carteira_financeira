@@ -13,8 +13,17 @@ import { PasswordResetsRepository } from "./password-resets.repository";
 import { SessionsRepository } from "./sessions.repository";
 
 /**
- * Password recovery by e-mailed link: random 256-bit token, valid for 7
- * minutes, single use. Only its hash is stored.
+ * Recuperação de senha por link enviado por e-mail.
+ *
+ * Fluxo: o usuário pede o link (`forgot`) -> recebe um token aleatório de 256
+ * bits -> abre o link e define a nova senha (`reset`).
+ *
+ * Decisões de segurança:
+ *   - o token vale 7 minutos e só pode ser usado UMA vez;
+ *   - no banco fica apenas o SHA-256 do token (vazar a tabela não dá links);
+ *   - a resposta ao pedido é idêntica exista ou não a conta (sem enumeração);
+ *   - redefinir a senha NÃO desliga o 2FA: um e-mail invadido, sozinho, não
+ *     basta para tomar a conta.
  */
 @Injectable()
 export class PasswordRecoveryService {
@@ -29,17 +38,25 @@ export class PasswordRecoveryService {
   ) {}
 
   /**
-   * Issues a reset link. The answer is the same whether or not the account
-   * exists, so it cannot be enumerated. A mail failure is logged but never
-   * shown, for the same reason.
+   * Gera e envia o link de redefinição.
+   *
+   * A resposta é a MESMA exista ou não a conta: quem digita e-mails alheios não
+   * descobre quem é cliente. Pelo mesmo motivo, uma falha no envio do e-mail é
+   * registrada em log, mas nunca mostrada na resposta.
+   *
+   * Limites: 10 pedidos por IP e 3 por e-mail a cada 15 min, para que ninguém
+   * use o sistema para encher a caixa de entrada de uma vítima.
    */
   async forgot(dto: ForgotPasswordDto, req: AppRequest) {
     await this.limiter.throttle(`forgot-ip:${req.ip}`, 10);
     await this.limiter.throttle(`forgot-email:${dto.email}`, 3);
     const user = await this.users.findByEmail(dto.email);
+    // Liga o evento de auditoria à conta, quando existe.
     req.targetResource = user?.id || null;
     if (user) {
       const value = token();
+      // O hash é gravado e auditado na mesma transação; o e-mail só sai DEPOIS
+      // do commit, para nunca enviar um link que não ficou gravado.
       await this.db.transaction(async tx => {
         await this.resets.issue(tx, user.id, digest(value), RESET_MINUTES);
         await this.audit.record(
@@ -56,6 +73,7 @@ export class PasswordRecoveryService {
       try {
         await this.mail.sendPasswordReset(user.email, value, RESET_MINUTES);
       } catch {
+        // Só o ID de correlação vai ao log: nem o e-mail do usuário nem o token.
         console.error(
           JSON.stringify({
             event: "mail.failed",
@@ -64,6 +82,8 @@ export class PasswordRecoveryService {
         );
       }
     } else
+      // Conta inexistente: nada é enviado, mas o pedido fica auditado (útil para
+      // detectar alguém testando e-mails). A resposta ao cliente continua igual.
       await this.audit.record(
         "auth.recovery.requested",
         null,
@@ -79,14 +99,19 @@ export class PasswordRecoveryService {
   }
 
   /**
-   * Sets a new password with a valid link. The token is consumed with
-   * DELETE ... RETURNING, so two simultaneous uses cannot both succeed.
-   * Resetting the password never disables the second factor and ends every session.
+   * Define a nova senha com um link válido.
+   *
+   * O token é gasto com DELETE ... RETURNING: duas requisições simultâneas com
+   * o mesmo link não conseguem as duas. Depois de trocar a senha, TODAS as
+   * sessões do usuário são encerradas (quem tinha a senha antiga é expulso) e o
+   * 2FA continua exigido no próximo login.
    */
   async reset(dto: ResetPasswordDto, req: AppRequest) {
     await this.limiter.throttle(`reset-ip:${req.ip}`, 20);
+    // scrypt é lento de propósito: calculado antes da transação para não segurar a conexão.
     const hash = await hashPassword(dto.password);
     return this.db.transaction(async tx => {
+      // Compara pelo hash do token; link expirado, usado ou inventado cai no mesmo erro.
       const userId = await this.resets.consume(tx, digest(dto.token));
       if (!userId)
         throw new BadRequestException(

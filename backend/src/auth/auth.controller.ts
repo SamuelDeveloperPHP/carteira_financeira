@@ -15,7 +15,14 @@ import {
 import { PasswordRecoveryService } from "./password-recovery.service";
 import { TwoFactorService } from "./two-factor.service";
 
-/** HttpOnly (no JS access), SameSite=Strict (no cross-site sends); Secure behind HTTPS. */
+/**
+ * Opções do cookie de sessão:
+ *   - httpOnly: JavaScript da página não o lê (um XSS não consegue roubá-lo);
+ *   - sameSite "strict": o navegador não o envia em requisições vindas de outros
+ *     sites (defesa contra CSRF);
+ *   - secure: só trafega por HTTPS (ligado com COOKIE_SECURE=true em produção);
+ *   - path "/api": só é enviado às rotas da API, não aos arquivos do site.
+ */
 const cookieOptions = () => ({
   httpOnly: true,
   sameSite: "strict" as const,
@@ -24,9 +31,12 @@ const cookieOptions = () => ({
 });
 
 /**
- * HTTP layer for authentication: translates requests into service calls and
- * owns the session cookie. No business rule lives here. Each route declares
- * its access level; without `@Access` it needs a fully authenticated session.
+ * Camada HTTP da autenticação: traduz requisições em chamadas de serviço e é
+ * dona do cookie de sessão. Nenhuma regra de negócio mora aqui (princípio de
+ * responsabilidade única: o controller só conversa HTTP).
+ *
+ * Cada rota declara seu nível de acesso com `@Access`. Sem o decorador, a rota
+ * exige sessão completa com 2FA, ou seja, o padrão é o mais restrito.
  */
 @Controller("auth")
 export class AuthController {
@@ -36,7 +46,12 @@ export class AuthController {
     private readonly recovery: PasswordRecoveryService
   ) {}
 
-  /** The opaque session token only ever travels in an HttpOnly cookie, never in the body. */
+  /**
+   * O token de sessão só viaja em cookie HttpOnly, NUNCA no corpo da resposta.
+   * Este método separa o token do restante dos dados (que são devolvidos ao
+   * navegador) e o grava no cookie, com validade conforme o estágio: curta para
+   * a sessão parcial, longa para a completa.
+   */
   private withSession<T extends { cookie: string; stage: string }>(
     result: T,
     res: Response
@@ -75,7 +90,12 @@ export class AuthController {
     return this.recovery.reset(dto, req);
   }
 
-  /** Lets the frontend discover which step of the login the cookie is at. */
+  /**
+   * Informa ao frontend em que ponto do login o cookie está (sem sessão, parcial
+   * ou completa). Ao abrir a página, é assim que a tela decide se mostra o
+   * login, o QR code do 2FA, o campo do código ou a carteira. Os dados do
+   * usuário só são devolvidos quando a sessão é completa.
+   */
   @Access("any-stage") @Get("status")
   status(@Req() req: AppRequest) {
     const auth = sessionOf(req);
@@ -107,7 +127,10 @@ export class AuthController {
     return this.withSession(await this.auth.verify(dto, req), res);
   }
 
-  /** Replaces the authenticator; needs a full session, password and a valid code. */
+  /**
+   * Troca o autenticador. Exige sessão completa E, no corpo, senha e código
+   * válido. Devolve uma sessão "setup" nova (todas as outras são revogadas).
+   */
   @Post("rotate")
   async rotate(
     @Body() dto: RotateDto,

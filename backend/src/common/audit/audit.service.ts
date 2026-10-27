@@ -4,22 +4,36 @@ import { AuditContext } from "../http/request.types";
 import { RateLimiter } from "../rate-limit/rate-limiter.service";
 import { AuditRepository, Outcome } from "./audit.repository";
 
-/** Writes the append-only audit trail: who did what, from where, with what result. */
+/**
+ * Escreve a trilha de auditoria (somente inclusão): QUEM fez O QUÊ, QUANDO, DE
+ * ONDE e com que RESULTADO. É a base da investigação de incidentes e da tela do
+ * master. Nenhum dado sensível entra aqui: nunca senhas, tokens ou códigos.
+ */
 @Injectable()
 export class AuditService {
   constructor(
     private readonly events: AuditRepository,
     private readonly limiter: RateLimiter
   ) {}
-  // Unauthenticated noise (random paths, unknown e-mails) shares a per-IP budget so
-  // it cannot grow the append-only trail without bound. Events tied to a known
-  // account or an authenticated user are never dropped.
+  // Como a trilha é só de inclusão (não dá para apagar), o "ruído" anônimo
+  // (rotas inexistentes, e-mails desconhecidos) dividiria o espaço com eventos
+  // importantes e poderia crescer sem limite num ataque. Por isso cada IP tem um
+  // ORÇAMENTO (100 eventos a cada 15 min). Eventos ligados a uma conta conhecida
+  // ou a um usuário autenticado NUNCA são descartados; só o ruído anônimo é.
   allowAnonymous(ip: string, limit = 100, seconds = 900) {
     return this.limiter.allow(`audit-anon:${ip}`, limit, seconds);
   }
   /**
-   * @param client pass the open transaction so the audit row commits or rolls
-   *   back together with the operation it describes.
+   * Registra um evento.
+   *
+   * @param action nome da ação, ex.: "transfer.completed" (cortado em 80 caracteres).
+   * @param actor quem fez; null quando não há autor identificado.
+   * @param resource sobre o quê (id de usuário, movimento...).
+   * @param outcome success, denied (recusa de negócio) ou failure (erro interno).
+   * @param client passe a transação aberta para que o evento seja confirmado ou
+   *   desfeito JUNTO com a operação que descreve. Sem ele, grava direto: é o caso
+   *   das falhas, auditadas depois do rollback (senão o próprio rollback
+   *   apagaria a evidência).
    */
   async record(
     action: string,

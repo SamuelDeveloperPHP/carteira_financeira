@@ -8,8 +8,12 @@ import { EventsQueryDto, UsersQueryDto } from "./dto/admin.dto";
 import { AdminRepository } from "./admin.repository";
 
 /**
- * Read-only queries for the master auditor. Every read the master makes is
- * itself written to the audit trail, so nobody inspects accounts unobserved.
+ * Consultas SOMENTE de leitura do master (auditor).
+ *
+ * Princípio: quem audita também é auditado. Toda consulta do master (contas,
+ * extratos, eventos, movimentações, métricas) é registrada na própria trilha de
+ * auditoria, então ninguém inspeciona contas sem deixar rastro. O master não
+ * tem nenhuma rota de escrita: não move dinheiro, não altera dados.
  */
 @Injectable()
 export class AdminService {
@@ -74,7 +78,11 @@ export class AdminService {
     };
   }
 
-  /** Full trace of one movement: its record, ledger entries and related audit events. */
+  /**
+   * Rastreio completo de uma movimentação: o registro, os lançamentos de cada
+   * carteira afetada e todos os eventos de auditoria relacionados (quem pediu,
+   * de que IP, se houve devolução). É o "de ponta a ponta" de uma transferência.
+   */
   async movement(id: string, actor: string, ctx: AuditContext) {
     const movement = await this.admin.findMovement(id);
     if (!movement) throw new NotFoundException("Movimentação não encontrada.");
@@ -87,9 +95,16 @@ export class AdminService {
   }
 
   /**
-   * Operational indicators plus reconciliation: the sum of wallet balances must
-   * equal the sum of deposits (transfers only move money), and every wallet
-   * must match its last ledger entry. Any difference raises a critical alert.
+   * Indicadores operacionais e CONCILIAÇÃO.
+   *
+   * Conciliar é conferir que os números contam a mesma história:
+   *   1. a soma de todos os saldos deve ser igual à soma de todos os depósitos
+   *      (transferências e devoluções apenas movem dinheiro, não o criam);
+   *   2. o saldo de cada carteira deve ser igual à soma dos seus lançamentos.
+   * Qualquer diferença gera um alerta CRÍTICO, pois indica corrupção ou bug.
+   *
+   * Também alerta (nível aviso) quando há 5 ou mais recusas/falhas nos últimos
+   * 15 minutos, que pode ser um ataque de tentativa e erro ou um problema.
    */
   async metrics(actor: string, ctx: AuditContext) {
     await this.audit.record("admin.metrics.view", actor, null, ctx);

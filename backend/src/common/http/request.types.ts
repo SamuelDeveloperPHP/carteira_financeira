@@ -2,10 +2,15 @@ import { UnauthorizedException } from "@nestjs/common";
 import type { Request } from "express";
 
 export type Role = "user" | "master";
-/** setup: enrolling 2FA · challenge: awaiting the code · full: authenticated. */
+/**
+ * Estágio da sessão:
+ *   setup     - senha aceita; cadastrando o autenticador pela primeira vez
+ *   challenge - senha aceita; falta digitar o código do autenticador
+ *   full      - autenticado de verdade (única etapa que acessa rotas com dinheiro)
+ */
 export type SessionStage = "setup" | "challenge" | "full";
 
-/** Request metadata stored with every audit event. */
+/** Metadados da requisição gravados em todo evento de auditoria: correlação, IP, navegador e localização. */
 export interface AuditContext {
   correlationId: string;
   ip: string;
@@ -33,7 +38,11 @@ export interface AppRequest extends Request {
   targetResource?: string | null;
 }
 
-/** The authenticated session attached by the guard; 401 if there is none. */
+/**
+ * Devolve a sessão que o guard anexou à requisição; 401 se não houver. Os
+ * serviços usam ISTO para saber quem é o usuário, nunca um id vindo do corpo da
+ * requisição, que o cliente poderia forjar.
+ */
 export function sessionOf(req: AppRequest): SessionUser {
   if (!req.auth) throw new UnauthorizedException("Entre para continuar.");
   return req.auth;
