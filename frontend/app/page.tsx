@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, FormEvent, ReactNode } from "react";
+import { confirmAction, escapeHtml, notify } from "./alerts";
 type User = {
   id: string;
   name: string;
@@ -232,7 +233,6 @@ export default function Home() {
     } | null>(null),
     [codes, setCodes] = useState<string[]>([]);
   const [busy, setBusy] = useState(false),
-    [notice, setNotice] = useState<{ type: string; text: string } | null>(null),
     [view, setView] = useState("wallet");
   const [balance, setBalance] = useState(0),
     [statement, setStatement] = useState<List<Movement>>({
@@ -241,12 +241,10 @@ export default function Home() {
       hasMore: false,
     });
   const [recipient, setRecipient] = useState(""),
-    [amount, setAmount] = useState(""),
-    [confirmTransfer, setConfirmTransfer] = useState(false);
+    [amount, setAmount] = useState("");
   const request = useRef<{ payload: string; key: string } | null>(null),
     refundKeys = useRef<Record<string, string>>({});
-  const [refundId, setRefundId] = useState<string | null>(null),
-    [rotatePassword, setRotatePassword] = useState(""),
+  const [rotatePassword, setRotatePassword] = useState(""),
     [rotateCode, setRotateCode] = useState("");
   const [accounts, setAccounts] = useState<List<Account>>({
       items: [],
@@ -276,10 +274,10 @@ export default function Home() {
     events: AuditEvent[];
   } | null>(null);
   function error(e: unknown) {
-    setNotice({
-      type: "error",
-      text: e instanceof Error ? e.message : "Não foi possível concluir.",
-    });
+    notify(
+      "error",
+      e instanceof Error ? e.message : "Não foi possível concluir."
+    );
     if (e instanceof ApiError && e.status === 401 && user &&
         (e.message.startsWith("Sessão expirada") || e.message === "Entre para continuar.")) {
       setUser(null);
@@ -288,7 +286,6 @@ export default function Home() {
   }
   async function work(fn: () => Promise<void>) {
     setBusy(true);
-    setNotice(null);
     try {
       await fn();
     } catch (e) {
@@ -337,7 +334,6 @@ export default function Home() {
       history.replaceState(null, "", location.pathname + location.search);
       setResetToken(token);
       setRecovery("reset");
-      setNotice(null);
     };
     readToken();
     window.addEventListener("hashchange", readToken);
@@ -368,10 +364,10 @@ export default function Home() {
         await api("/auth/register", "POST", { name, email, password });
         setRegister(false);
         setPassword("");
-        setNotice({
-          type: "success",
-          text: "Conta criada com saldo zero. Entre para configurar o autenticador.",
-        });
+        notify(
+          "success",
+          "Conta criada com saldo zero. Entre para configurar o autenticador."
+        );
         return;
       }
       const location = await locate();
@@ -391,7 +387,7 @@ export default function Home() {
         { email }
       );
       setRecovery("none");
-      setNotice({ type: "success", text: r.message });
+      notify("success", r.message);
     });
   }
   async function resetPassword(e: FormEvent) {
@@ -405,7 +401,7 @@ export default function Home() {
       setNewPassword("");
       setResetToken("");
       setRecovery("none");
-      setNotice({ type: "success", text: r.message });
+      notify("success", r.message);
     });
   }
   async function verify(e: FormEvent) {
@@ -416,6 +412,7 @@ export default function Home() {
       setEnrollment(null);
       setCodes(r.recoveryCodes || []);
       await initialize(r.user);
+      notify("success", "Acesso confirmado.");
     });
   }
   async function logout() {
@@ -428,6 +425,7 @@ export default function Home() {
       setEnrollment(null);
       setSelected(null);
       setTimeline(null);
+      notify("info", "Sessão encerrada com segurança.");
     });
   }
   function cents() {
@@ -444,10 +442,12 @@ export default function Home() {
     await work(async () => {
       const value = cents();
       if (value > balance) throw new Error("Saldo insuficiente.");
-      if (!confirmTransfer) {
-        setConfirmTransfer(true);
-        return;
-      }
+      const confirmed = await confirmAction({
+        title: "Confirmar transferência",
+        html: `Enviar <strong>${cash(value)}</strong> para <strong>${escapeHtml(recipient.trim())}</strong>?`,
+        confirmText: "Transferir",
+      });
+      if (!confirmed) return;
       const payload = JSON.stringify({
         recipientEmail: recipient.trim(),
         amount: value,
@@ -463,24 +463,28 @@ export default function Home() {
       request.current = null;
       setRecipient("");
       setAmount("");
-      setConfirmTransfer(false);
       await loadWallet();
-      setNotice({
-        type: "success",
-        text: `Transferência concluída. Referência: ${r.id}`,
-      });
+      notify("success", `Transferência concluída. Referência: ${r.id}`);
     });
   }
-  async function refund(id: string) {
+  async function refund(m: Movement) {
     await work(async () => {
-      refundKeys.current[id] ??= crypto.randomUUID();
-      await api(`/transfers/${id}/refund`, "POST", {}, refundKeys.current[id]);
-      setRefundId(null);
-      await loadWallet(statement.page);
-      setNotice({
-        type: "success",
-        text: "Valor devolvido integralmente ao remetente.",
+      const confirmed = await confirmAction({
+        title: "Devolver transferência",
+        html: `Devolver <strong>${cash(m.amount)}</strong> a <strong>${escapeHtml(m.sender_name)}</strong>? A devolução é integral e não pode ser repetida.`,
+        confirmText: "Devolver",
       });
+      if (!confirmed) return;
+      // One idempotency key per transfer: a retry never refunds twice.
+      refundKeys.current[m.id] ??= crypto.randomUUID();
+      await api(
+        `/transfers/${m.id}/refund`,
+        "POST",
+        {},
+        refundKeys.current[m.id]
+      );
+      await loadWallet(statement.page);
+      notify("success", "Valor devolvido integralmente ao remetente.");
     });
   }
   async function switchView(next: string) {
@@ -513,15 +517,8 @@ export default function Home() {
     a.download = "carteira-codigos-recuperacao.txt";
     a.click();
     URL.revokeObjectURL(url);
+    notify("success", "Códigos baixados. Guarde o arquivo em local seguro.");
   }
-  const noticeBox = notice && (
-    <div
-      role={notice.type === "error" ? "alert" : "status"}
-      className={`notice ${notice.type}`}
-    >
-      {notice.text}
-    </div>
-  );
   function transactions(admin = false) {
     return (
       <>
@@ -574,33 +571,13 @@ export default function Home() {
                     ) : m.kind === "transfer" &&
                       m.recipient_id === user?.id &&
                       !m.refund_id ? (
-                      refundId === m.id ? (
-                        <div>
-                          <p className="small">Devolver {cash(m.amount)}?</p>
-                          <div className="inline-actions">
-                            <button
-                              disabled={busy}
-                              className="btn btn-sm btn-primary"
-                              onClick={() => refund(m.id)}
-                            >
-                              Confirmar
-                            </button>
-                            <button
-                              className="btn btn-sm btn-outline-secondary"
-                              onClick={() => setRefundId(null)}
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          className="btn btn-sm btn-outline-secondary"
-                          onClick={() => setRefundId(m.id)}
-                        >
-                          Devolver
-                        </button>
-                      )
+                      <button
+                        disabled={busy}
+                        className="btn btn-sm btn-outline-secondary"
+                        onClick={() => refund(m)}
+                      >
+                        Devolver
+                      </button>
                     ) : (
                       <small>—</small>
                     )}
@@ -667,7 +644,6 @@ export default function Home() {
           </section>
           <section className="auth-form">
             <div className="auth-form-inner">
-              {noticeBox}
               {stage === "login" && recovery === "request" ? (
                 <>
                   <h2>Recuperar acesso</h2>
@@ -735,19 +711,13 @@ export default function Home() {
                   <div className="auth-tabs">
                     <button
                       className={!register ? "active" : ""}
-                      onClick={() => {
-                        setRegister(false);
-                        setNotice(null);
-                      }}
+                      onClick={() => setRegister(false)}
                     >
                       Entrar
                     </button>
                     <button
                       className={register ? "active" : ""}
-                      onClick={() => {
-                        setRegister(true);
-                        setNotice(null);
-                      }}
+                      onClick={() => setRegister(true)}
                     >
                       Criar conta
                     </button>
@@ -805,10 +775,7 @@ export default function Home() {
                       <button
                         type="button"
                         className="btn btn-link w-100 mt-2"
-                        onClick={() => {
-                          setRecovery("request");
-                          setNotice(null);
-                        }}
+                        onClick={() => setRecovery("request")}
                       >
                         Esqueci minha senha
                       </button>
@@ -957,7 +924,6 @@ export default function Home() {
                 Sair
               </button>
             </header>
-            {noticeBox}
             {codes.length > 0 && (
               <section className="panel">
                 <h2>Guarde seus códigos de recuperação</h2>
@@ -1014,10 +980,7 @@ export default function Home() {
                           type="email"
                           required
                           value={recipient}
-                          onChange={e => {
-                            setRecipient(e.target.value);
-                            setConfirmTransfer(false);
-                          }}
+                          onChange={e => setRecipient(e.target.value)}
                         />
                       </Field>
                       <Field label="Valor em reais">
@@ -1027,35 +990,13 @@ export default function Home() {
                           placeholder="0,00"
                           required
                           value={amount}
-                          onChange={e => {
-                            setAmount(e.target.value);
-                            setConfirmTransfer(false);
-                          }}
+                          onChange={e => setAmount(e.target.value)}
                         />
                       </Field>
-                      {confirmTransfer && (
-                        <div className="confirm">
-                          Confirme o envio de <strong>{cash(cents())}</strong>{" "}
-                          para <strong>{recipient}</strong>.
-                        </div>
-                      )}
                       <div className="inline-actions">
                         <button className="btn btn-primary" disabled={busy}>
-                          {busy
-                            ? "Processando…"
-                            : confirmTransfer
-                              ? "Confirmar transferência"
-                              : "Revisar transferência"}
+                          {busy ? "Processando…" : "Transferir"}
                         </button>
-                        {confirmTransfer && (
-                          <button
-                            type="button"
-                            className="btn btn-outline-secondary"
-                            onClick={() => setConfirmTransfer(false)}
-                          >
-                            Cancelar
-                          </button>
-                        )}
                       </div>
                     </form>
                   </section>
@@ -1438,6 +1379,10 @@ export default function Home() {
                       setRotatePassword("");
                       setRotateCode("");
                       setEnrollment(await api("/auth/setup"));
+                      notify(
+                        "warning",
+                        "Autenticador substituído. Cadastre o novo para continuar."
+                      );
                     });
                   }}
                 >
