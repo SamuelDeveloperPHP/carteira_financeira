@@ -278,6 +278,87 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
         assert.equal(events.rows[0].origin, "self-service");
       }
     );
+    await t.test(
+      "notificações de transferência e devolução recebidas, lidas somem da lista",
+      async () => {
+        const n1 = await account("aviso-um"),
+          n2 = await account("aviso-dois");
+        await wallet.deposit(n1.email, 5000, `aviso-${suffix}`, ctx);
+        const list = u => call("/notifications", "GET", undefined, u.cookie);
+        const count = async u =>
+          (await call("/notifications/count", "GET", undefined, u.cookie)).data
+            .unread;
+        assert.equal(await count(n2), 0);
+
+        // Quem recebe é avisado; quem envia não.
+        const sent = await transfer(n1, n2, 1000);
+        assert.equal(sent.status, 201);
+        assert.equal(await count(n2), 1);
+        assert.equal(await count(n1), 0);
+        const received = (await list(n2)).data;
+        assert.equal(received.unread, 1);
+        assert.equal(received.items[0].kind, "transfer_received");
+        assert.equal(received.items[0].movementId, sent.data.id);
+        assert.match(received.items[0].message, /enviou R\$ 10,00 para você\./);
+        assert.equal((await list(n1)).data.items.length, 0);
+
+        // Repetir a mesma transferência (mesma chave) não cria outro aviso.
+        const key = randomUUID();
+        await transfer(n1, n2, 100, key);
+        await transfer(n1, n2, 100, key);
+        assert.equal(await count(n2), 2);
+
+        // Outra pessoa não consegue ler nem marcar o aviso alheio.
+        const mine = received.items[0].id;
+        assert.equal(
+          (await call(`/notifications/${mine}/read`, "POST", {}, n1.cookie)).status,
+          404
+        );
+        assert.equal(await count(n2), 2);
+
+        // Marcar como lida: some da lista e o contador cai. Repetir não dá erro.
+        const read = await call(`/notifications/${mine}/read`, "POST", {}, n2.cookie);
+        assert.equal(read.status, 201);
+        assert.equal(read.data.message, "Notificação marcada como lida.");
+        assert.equal(await count(n2), 1);
+        assert(!(await list(n2)).data.items.some(i => i.id === mine));
+        assert.equal(
+          (await call(`/notifications/${mine}/read`, "POST", {}, n2.cookie)).status,
+          201
+        );
+
+        // Corpo extra e id inválido são recusados; sem sessão não lê.
+        assert.equal(
+          (await call(`/notifications/${mine}/read`, "POST", { x: 1 }, n2.cookie)).status,
+          400
+        );
+        assert.equal(
+          (await call("/notifications/nao-e-uuid/read", "POST", {}, n2.cookie)).status,
+          400
+        );
+        assert.equal((await call("/notifications", "GET")).status, 401);
+
+        // Devolução: quem enviou a transferência original é avisado.
+        const refund = await call(
+          `/transfers/${sent.data.id}/refund`,
+          "POST",
+          {},
+          n2.cookie,
+          randomUUID()
+        );
+        assert.equal(refund.status, 201);
+        const back = (await list(n1)).data;
+        assert.equal(back.unread, 1);
+        assert.equal(back.items[0].kind, "refund_received");
+        assert.match(back.items[0].message, /devolveu R\$ 10,00 da transferência que você enviou\./);
+
+        // Marcar todas como lidas esvazia a lista de n2 (restava 1 aviso).
+        const all = await call("/notifications/read-all", "POST", {}, n2.cookie);
+        assert.equal(all.data.updated, 1);
+        assert.equal((await list(n2)).data.items.length, 0);
+        assert.equal(await count(n2), 0);
+      }
+    );
     await t.test("validação e isolamento das contas", async () => {
       for (const amount of [0, -1, 1.5, 1000000000001])
         assert.equal((await transfer(a, b, amount)).status, 400);

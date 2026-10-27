@@ -10,6 +10,7 @@ import { Database } from "../common/database/database.service";
 import { AuditContext } from "../common/http/request.types";
 import { logUnexpected } from "../common/logging/failure-log";
 import { digest } from "../common/security/crypto";
+import { NotificationsService } from "../notifications/notifications.service";
 import { UsersRepository } from "../users/users.repository";
 import { TransferDto } from "./dto/wallet.dto";
 import { IdempotencyService } from "./idempotency.service";
@@ -42,7 +43,8 @@ export class TransfersService {
     private readonly ledger: LedgerService,
     private readonly movements: LedgerRepository,
     private readonly idempotency: IdempotencyService,
-    private readonly audit: AuditService
+    private readonly audit: AuditService,
+    private readonly notifications: NotificationsService
   ) {}
 
   /**
@@ -116,7 +118,17 @@ export class TransfersService {
           reference: null,
         });
 
-        // PASSO 4 - Guarda o resultado para futuras repetições e registra a
+        // PASSO 4 - Avisa o destinatário. Na MESMA transação: se algo falhar daqui
+        // em diante, o aviso some junto com o dinheiro (ninguém é avisado de
+        // uma transferência que não aconteceu).
+        await this.notifications.create(
+          tx,
+          "transfer_received",
+          recipientId,
+          movement.id
+        );
+
+        // PASSO 5 - Guarda o resultado para futuras repetições e registra a
         // auditoria. Ambos na MESMA transação: se algo falhar daqui em diante,
         // o dinheiro também volta (rollback).
         await this.idempotency.remember(
@@ -219,6 +231,13 @@ export class TransfersService {
           originalId,
           reference: null,
         });
+        // Avisa quem enviou a transferência original de que o valor voltou.
+        await this.notifications.create(
+          tx,
+          "refund_received",
+          original.sender_id!,
+          movement.id
+        );
         await this.idempotency.remember(
           tx,
           scope,
