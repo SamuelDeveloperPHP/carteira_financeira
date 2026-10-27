@@ -233,6 +233,78 @@ a {
   background: #304e60;
   color: #fff;
 }
+/* Contador ao lado de "Notificações" no menu lateral. */
+.nav-badge {
+  display: inline-block;
+  margin-left: 8px;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: #b3261e;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+}
+/* Sino da barra do topo, com o contador de não lidas no canto. */
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--ink);
+}
+.bell:hover:not(:disabled) {
+  border-color: var(--green);
+  color: var(--green);
+}
+.bell-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 20px;
+  padding: 1px 5px;
+  border-radius: 10px;
+  background: #b3261e;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+}
+/* Lista de notificações: um cartão por aviso, com o botão à direita. */
+.notice-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.notice-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.notice-list li:last-child {
+  border-bottom: 0;
+}
+@media (max-width: 700px) {
+  .notice-list li {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
 .sidebar footer {
   margin-top: auto;
   color: #b8cbd7;

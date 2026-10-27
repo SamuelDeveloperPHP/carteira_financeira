@@ -21,6 +21,10 @@ POST exige `Origin: http://localhost:3080`, `Content-Type: application/json` e `
 | POST `/deposits` | `amount` (centavos, 1 a 1.000.000) | Usuário; adiciona saldo simulado à própria carteira; exige `Idempotency-Key`; 20 por hora |
 | POST `/transfers` | `recipientEmail`, `amount` | Usuário; exige `Idempotency-Key` |
 | POST `/transfers/:id/refund` | `{}` | Destinatário original; exige `Idempotency-Key` |
+| GET `/notifications` | `page` | Usuário; avisos NÃO lidos (20 por página) e `unread` (total pendente). Cada item traz `message` pronta |
+| GET `/notifications/count` | — | Usuário; `{ "unread": n }`, usado pelo sino |
+| POST `/notifications/:id/read` | `{}` | Usuário; marca como lido e o aviso some da lista; 404 se não for seu |
+| POST `/notifications/read-all` | `{}` | Usuário; marca todos como lidos e devolve `updated` e `message` |
 | GET `/admin/users` | `email` (nome ou e-mail), `page` | Master; 20 itens por página |
 | GET `/admin/users/:id/statement` | `page` | Master |
 | GET `/admin/events` | `userId`, `action`, `outcome`, `ip`, `from`, `to`, `page` | Master; 30 itens por página |
@@ -63,6 +67,8 @@ Cookie: wallet_session=<sessao-completa>
 ```
 
 Só funciona com `DEMO_DEPOSITS=true`; caso contrário responde 403 "Depósitos simulados desabilitados.". Acima de R$ 10.000,00 responde 400.
+
+**Notificações.** Geradas junto com o movimento: `transfer_received` (ao destinatário de uma transferência) e `refund_received` (a quem enviou a transferência devolvida). Exemplo de item: `{"id":"…","kind":"transfer_received","message":"Ana enviou R$ 10,00 para você.","amount":"1000","movementId":"…","createdAt":"…"}`. O master não tem notificações.
 
 **Mensagens de retorno.** `POST /deposits`, `/transfers` e `/transfers/:id/refund` devolvem o movimento e um campo `message` em português, por exemplo `{"id":"…","kind":"deposit","amount":"5000","message":"Saldo adicionado à sua carteira."}`. A interface exibe essa mensagem como está.
 

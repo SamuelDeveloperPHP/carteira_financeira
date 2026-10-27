@@ -61,8 +61,9 @@ async function migrate() {
     // ---- Princípio do menor privilégio ------------------------------------
     await c.query("GRANT USAGE ON SCHEMA public TO wallet_app");
     // Tabelas "vivas" (mudam o tempo todo): leitura e escrita completas.
+    // `notifications` entra aqui porque marcar como lida é um UPDATE.
     await c.query(
-      "GRANT SELECT, INSERT, UPDATE, DELETE ON users, wallets, sessions, recovery_codes, rate_limits, password_resets TO wallet_app"
+      "GRANT SELECT, INSERT, UPDATE, DELETE ON users, wallets, sessions, recovery_codes, rate_limits, password_resets, notifications TO wallet_app"
     );
     // Tabelas de histórico: SOMENTE ler e inserir. Sem UPDATE/DELETE, a própria
     // aplicação não consegue reescrever movimentos, lançamentos ou auditoria

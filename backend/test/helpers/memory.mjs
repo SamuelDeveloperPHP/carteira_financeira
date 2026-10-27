@@ -14,6 +14,7 @@ export function createWorld(wallets = {}) {
     entries: [],
     idem: new Map(),
     audit: [],
+    notifications: [],
   };
   const world = { state, failOnCredit: false };
   const snapshot = () => ({
@@ -22,6 +23,7 @@ export function createWorld(wallets = {}) {
     entries: [...state.entries],
     idem: new Map(state.idem),
     audit: [...state.audit],
+    notifications: [...state.notifications],
   });
   const db = {
     async transaction(work) {
@@ -98,7 +100,12 @@ export function createWorld(wallets = {}) {
     ledger,
     ledgerRepo,
     idempotency,
-    audit
+    audit,
+    {
+      // Dublê do NotificationsService: guarda no mesmo estado que o rollback restaura.
+      create: async (_tx, kind, userId, movementId) =>
+        state.notifications.push({ kind, userId, movementId }),
+    }
   );
   world.deposits = (provider = { name: "test", confirm: async () => {} }) =>
     new depositsService.DepositsService(

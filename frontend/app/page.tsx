@@ -74,6 +74,16 @@ type Account = User & {
   totp_enabled: boolean;
   created_at: string;
 };
+// Aviso de dinheiro recebido. A mensagem já vem pronta, em português, do servidor.
+// Só os NÃO lidos são listados: ao marcar como lido, o aviso some da lista.
+type AppNotification = {
+  id: string;
+  kind: "transfer_received" | "refund_received";
+  message: string;
+  amount: string;
+  movementId: string;
+  createdAt: string;
+};
 // Formato padrão de toda listagem paginada da API.
 type List<T> = { items: T[]; page: number; hasMore: boolean };
 // Indicadores do painel de monitoramento do master, incluindo a conciliação
@@ -118,6 +128,8 @@ function toCents(text: string): number {
 
 // Tradução dos códigos técnicos da API para texto de tela.
 const labels: Record<string, string> = {
+  transfer_received: "Transferência recebida",
+  refund_received: "Devolução recebida",
   deposit: "Depósito simulado",
   transfer: "Transferência",
   refund: "Devolução",
@@ -259,6 +271,26 @@ function Brand() {
 }
 // Paginação anterior/próxima. `hasMore` vem da API (que pede uma linha a mais
 // para saber se há outra página), sem precisar contar o total.
+// Ícone de sino (SVG inline, sem dependência externa). `aria-hidden`: o texto
+// acessível fica no botão que o contém.
+function BellIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+    </svg>
+  );
+}
 function Pager({
   value,
   change,
@@ -323,6 +355,16 @@ export default function Home() {
       page: 1,
       hasMore: false,
     });
+  // Notificações: `notes` é a página aberta na aba; `unread` alimenta o sino e é
+  // atualizado por consulta periódica (ver o useEffect de polling). `lastUnread`
+  // lembra o último valor visto, para avisar só quando AUMENTA.
+  const [notes, setNotes] = useState<List<AppNotification>>({
+      items: [],
+      page: 1,
+      hasMore: false,
+    }),
+    [unread, setUnread] = useState(0),
+    lastUnread = useRef(0);
   const [recipient, setRecipient] = useState(""),
     [amount, setAmount] = useState(""),
     [topUp, setTopUp] = useState("");
@@ -400,6 +442,17 @@ export default function Home() {
     setBalance(w.balance);
     setStatement(s);
   }
+  // Carrega os avisos NÃO lidos e sincroniza o contador do sino. Se a página
+  // ficou vazia (acabou de ler o último aviso dela), volta uma página.
+  async function loadNotifications(p = 1): Promise<void> {
+    const r = await api<List<AppNotification> & { unread: number }>(
+      `/notifications?page=${p}`
+    );
+    if (!r.items.length && p > 1) return loadNotifications(p - 1);
+    setNotes(r);
+    setUnread(r.unread);
+    lastUnread.current = r.unread;
+  }
   async function loadAccounts(p = 1) {
     setAccounts(
       await api(`/admin/users?email=${encodeURIComponent(search)}&page=${p}`)
@@ -460,6 +513,49 @@ export default function Home() {
       window.removeEventListener("hashchange", readToken);
     };
   }, []);
+  // Consulta periódica do contador de notificações (só para cliente comum).
+  // Roda ao entrar, a cada 15 s e quando a aba volta a ficar visível. É uma
+  // chamada barata (um COUNT com índice parcial). Falhas são silenciosas: o
+  // próximo ciclo tenta de novo, e um erro de rede não deve incomodar o usuário.
+  // Quando o número AUMENTA, mostra um toast além de acender o sino.
+  useEffect(() => {
+    if (!user || user.role !== "user") {
+      setUnread(0);
+      lastUnread.current = 0;
+      return;
+    }
+    let active = true;
+    const refresh = async () => {
+      try {
+        const { unread: total } = await api<{ unread: number }>(
+          "/notifications/count"
+        );
+        if (!active) return;
+        if (total > lastUnread.current)
+          notify(
+            "info",
+            total === 1
+              ? "Você tem 1 notificação nova."
+              : `Você tem ${total} notificações novas.`
+          );
+        lastUnread.current = total;
+        setUnread(total);
+      } catch {
+        /* silencioso: tenta de novo no próximo ciclo */
+      }
+    };
+    refresh();
+    const timer = setInterval(refresh, 15000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      active = false;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [user?.id, user?.role]);
   // Formulário de entrada/cadastro. No cadastro cria a conta (saldo zero) e
   // volta ao login. No login pede a localização (opcional), envia e-mail+senha e
   // avança para o estágio devolvido pelo servidor: "setup" (mostra o QR code do
@@ -629,11 +725,31 @@ export default function Home() {
       notify("success", r.message);
     });
   }
+  // Marca UM aviso como lido: ele some da lista e o sino diminui.
+  async function markRead(id: string) {
+    await work(async () => {
+      await api(`/notifications/${id}/read`, "POST", {});
+      await loadNotifications(notes.page);
+    });
+  }
+  // Marca TODOS os avisos pendentes como lidos e mostra a mensagem da API.
+  async function markAllRead() {
+    await work(async () => {
+      const r = await api<{ message: string }>(
+        "/notifications/read-all",
+        "POST",
+        {}
+      );
+      await loadNotifications(1);
+      notify("success", r.message);
+    });
+  }
   // Navegação entre as abas; cada aba carrega seus dados ao ser aberta.
   async function switchView(next: string) {
     await work(async () => {
       setView(next);
       setTimeline(null);
+      if (next === "notifications") await loadNotifications();
       if (next === "wallet") await loadWallet();
       if (next === "accounts") await loadAccounts();
       if (next === "events") await loadEvents();
@@ -1025,7 +1141,10 @@ export default function Home() {
                     ["events", "Trilha de auditoria"],
                     ["metrics", "Monitoramento"],
                   ]
-                : [["wallet", "Minha carteira"]]
+                : [
+                    ["wallet", "Minha carteira"],
+                    ["notifications", "Notificações"],
+                  ]
               )
                 .concat([
                   ["security", "Segurança"],
@@ -1039,6 +1158,9 @@ export default function Home() {
                     disabled={busy}
                   >
                     {title}
+                    {id === "notifications" && unread > 0 && (
+                      <span className="nav-badge">{unread}</span>
+                    )}
                   </button>
                 ))}
             </nav>
@@ -1061,6 +1183,7 @@ export default function Home() {
                         accounts: "Auditoria de contas",
                         events: "Trilha de auditoria",
                         metrics: "Monitoramento",
+                        notifications: "Notificações",
                         security: "Segurança",
                         about: "Sobre a demonstração",
                       } as Record<string, string>
@@ -1071,13 +1194,35 @@ export default function Home() {
                   {user.name} · {user.email}
                 </p>
               </div>
-              <button
-                className="btn btn-outline-secondary"
-                disabled={busy}
-                onClick={logout}
-              >
-                Sair
-              </button>
+              <div className="topbar-actions">
+                {/* Sino: só para cliente comum. O contador acende quando há aviso não lido. */}
+                {user.role === "user" && (
+                  <button
+                    className="bell"
+                    onClick={() => switchView("notifications")}
+                    disabled={busy}
+                    aria-label={
+                      unread > 0
+                        ? `Notificações: ${unread} não lida${unread > 1 ? "s" : ""}`
+                        : "Notificações: nenhuma nova"
+                    }
+                  >
+                    <BellIcon />
+                    {unread > 0 && (
+                      <span className="bell-badge">
+                        {unread > 99 ? "99+" : unread}
+                      </span>
+                    )}
+                  </button>
+                )}
+                <button
+                  className="btn btn-outline-secondary"
+                  disabled={busy}
+                  onClick={logout}
+                >
+                  Sair
+                </button>
+              </div>
             </header>
             {codes.length > 0 && (
               <section className="panel">
@@ -1521,6 +1666,58 @@ export default function Home() {
                   </p>
                 </section>
               </>
+            )}
+            {/* Aba do cliente: avisos de transferência e devolução recebidas. Só os não lidos; ao ler, somem. */}
+            {view === "notifications" && (
+              <section className="panel">
+                <div className="section-head">
+                  <h2>Notificações novas</h2>
+                  <button
+                    className="btn btn-sm btn-outline-secondary"
+                    disabled={busy || !notes.items.length}
+                    onClick={markAllRead}
+                  >
+                    Marcar todas como lidas
+                  </button>
+                </div>
+                {notes.items.length ? (
+                  <ul className="notice-list">
+                    {notes.items.map(n => (
+                      <li key={n.id}>
+                        <div>
+                          <span className="tag">{labels[n.kind]}</span>
+                          <strong className="d-block">{n.message}</strong>
+                          <small className="d-block muted">
+                            {date(n.createdAt)}
+                          </small>
+                        </div>
+                        <button
+                          className="btn btn-sm btn-outline-secondary"
+                          disabled={busy}
+                          onClick={() => markRead(n.id)}
+                        >
+                          Marcar como lida
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="empty">
+                    <h3>Nenhuma notificação nova</h3>
+                    <p>
+                      Avisaremos aqui quando você receber uma transferência ou
+                      uma devolução.
+                    </p>
+                  </div>
+                )}
+                {(notes.page > 1 || notes.hasMore) && (
+                  <Pager
+                    value={notes}
+                    busy={busy}
+                    change={p => work(() => loadNotifications(p))}
+                  />
+                )}
+              </section>
             )}
             {/* Aba de segurança: troca do autenticador (pede senha + código, encerra todas as sessões e exige novo cadastro). */}
             {view === "security" && (

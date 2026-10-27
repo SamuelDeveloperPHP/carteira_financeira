@@ -29,6 +29,44 @@ test("transferência debita o remetente, credita o destinatário e os lançament
   assert.equal(w.state.audit.at(-1).action, "transfer.completed");
 });
 
+test("o destinatário é avisado da transferência recebida, uma única vez", async () => {
+  const w = world();
+  const movement = await send(w, "ana", "bia", 3000);
+  assert.deepEqual(w.state.notifications, [
+    { kind: "transfer_received", userId: "bia", movementId: movement.id },
+  ]);
+  // Repetir o pedido (mesma chave) não gera um segundo aviso.
+  await send(w, "ana", "bia", 3000);
+  assert.equal(w.state.notifications.length, 1);
+});
+
+test("a devolução avisa quem enviou a transferência original", async () => {
+  const w = world();
+  const original = await send(w, "ana", "bia", 3000);
+  const refund = await w.transfers.refund("bia", original.id, "chave-devolucao-9", w.ctx);
+  assert.deepEqual(w.state.notifications.at(-1), {
+    kind: "refund_received",
+    userId: "ana",
+    movementId: refund.id,
+  });
+  assert.equal(w.state.notifications.length, 2);
+});
+
+test("transferência recusada ou desfeita não deixa aviso", async () => {
+  const w = world({ ana: 1000, bia: 0 });
+  await rejectsWith(send(w, "ana", "bia", 5000), 400);
+  assert.equal(w.state.notifications.length, 0);
+  w.failOnCredit = true;
+  const silence = console.error;
+  console.error = () => {};
+  try {
+    await assert.rejects(send(w, "ana", "bia", 500, "chave-falha-0001"));
+  } finally {
+    console.error = silence;
+  }
+  assert.equal(w.state.notifications.length, 0);
+});
+
 test("saldo insuficiente é recusado antes de qualquer alteração", async () => {
   const w = world({ ana: 1000, bia: 0 });
   await rejectsWith(send(w, "ana", "bia", 1001), 400);

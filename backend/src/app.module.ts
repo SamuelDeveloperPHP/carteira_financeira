@@ -9,6 +9,7 @@ import { AccessGuard } from "./common/http/access.guard";
 import { ErrorsFilter } from "./common/http/errors.filter";
 import { RateLimitModule } from "./common/rate-limit/rate-limit.module";
 import { HealthModule } from "./health/health.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 import { UsersModule } from "./users/users.module";
 import { WalletModule } from "./wallet/wallet.module";
 
@@ -29,6 +30,7 @@ import { WalletModule } from "./wallet/wallet.module";
     UsersModule,
     AuthModule, // cadastro, login, 2FA, recuperação de senha
     WalletModule, // saldo, extrato, transferência, devolução, depósito
+    NotificationsModule, // avisos de transferência e devolução recebidas
     AdminModule, // consultas do master (auditor)
     HealthModule, // /api/health para o monitoramento do Docker
   ],

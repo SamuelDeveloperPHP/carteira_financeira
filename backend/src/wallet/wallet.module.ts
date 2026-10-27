@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { NotificationsModule } from "../notifications/notifications.module";
 import { UsersModule } from "../users/users.module";
 import { DEPOSIT_PROVIDER, SimulatedDepositProvider } from "./deposit.provider";
 import { DepositsService } from "./deposits.service";
@@ -19,7 +20,8 @@ import { WalletService } from "./wallet.service";
  *   WalletController                           -> HTTP
  */
 @Module({
-  imports: [UsersModule],
+  // NotificationsModule: transferência e devolução criam avisos na própria transação.
+  imports: [UsersModule, NotificationsModule],
   controllers: [WalletController],
   providers: [
     LedgerRepository,
