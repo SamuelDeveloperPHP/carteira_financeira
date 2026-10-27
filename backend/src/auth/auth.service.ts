@@ -31,9 +31,14 @@ import { SessionsRepository } from "./sessions.repository";
 import { TwoFactorService } from "./two-factor.service";
 
 /**
- * Registration, password login, second-factor completion and logout.
- * Login happens in two stages: the password creates a partial session
- * ("setup" or "challenge"); only a valid second factor promotes it to "full".
+ * Cadastro, login por senha, conclusão do segundo fator e logout.
+ *
+ * O login acontece em DUAS ETAPAS:
+ *   1. a senha correta cria uma sessão PARCIAL ("setup" ou "challenge"), que não
+ *      dá acesso a nenhuma rota com dinheiro;
+ *   2. só um segundo fator válido a promove a sessão COMPLETA ("full").
+ *
+ * Assim, uma senha vazada sozinha nunca basta para operar a conta.
  */
 @Injectable()
 export class AuthService {
@@ -50,9 +55,9 @@ export class AuthService {
   ) {}
 
   /**
-   * Creates the user and a zero-balance wallet in one transaction. A duplicate
-   * e-mail (unique violation) gets a generic message so registered addresses
-   * cannot be discovered.
+   * Cria o usuário e sua carteira (saldo zero) em uma única transação: nunca
+   * existe um usuário sem carteira. E-mail repetido recebe uma mensagem
+   * genérica, para que não se descubra quais endereços já são clientes.
    */
   async register(dto: RegisterDto, req: AppRequest) {
     // Limite por IP contra criação em massa de contas (spam/abuso).
@@ -98,9 +103,12 @@ export class AuthService {
   }
 
   /**
-   * Checks e-mail and password (rate limited per IP and per account) and opens
-   * a partial session. Unknown e-mail and wrong password are indistinguishable
-   * in both message and timing.
+   * Etapa 1 do login: confere e-mail e senha (com limite de tentativas por IP e
+   * por conta) e abre uma sessão parcial. E-mail inexistente e senha errada são
+   * indistinguíveis, tanto na mensagem quanto no tempo de resposta.
+   *
+   * @returns o token da sessão (que o controller coloca em cookie HttpOnly) e o
+   *   estágio seguinte: "setup" (cadastrar autenticador) ou "challenge" (digitar código).
    */
   async login(dto: LoginDto, req: AppRequest) {
     // 1) Guarda a localização informada para a auditoria (validada; opcional).
@@ -157,8 +165,13 @@ export class AuthService {
   }
 
   /**
-   * Resolves the session cookie to its user. Only the SHA-256 of the token is
-   * stored, so a database leak does not yield usable cookies.
+   * Transforma o cookie de sessão no usuário correspondente (usado pelo guard em
+   * toda requisição autenticada).
+   *
+   * O token tem 256 bits aleatórios e, no banco, só existe o SHA-256 dele: quem
+   * vaza a tabela de sessões não obtém cookies utilizáveis. Formato inválido é
+   * recusado antes mesmo de consultar o banco. Sessão vencida resulta em 401,
+   * e o frontend volta para a tela de login.
    */
   async session(raw: string | undefined): Promise<SessionUser> {
     if (!raw || !/^[a-f0-9]{64}$/.test(raw))
@@ -170,9 +183,13 @@ export class AuthService {
   }
 
   /**
-   * Completes the login: the password was accepted earlier, this proves the
-   * second factor. The partial session is replaced by a new full one (token
-   * rotation) and the oldest sessions beyond the cap are revoked.
+   * Etapa 2 do login: a senha foi aceita antes; aqui o usuário prova o segundo
+   * fator. A sessão parcial é substituída por uma completa com NOVO token
+   * (rotação) e, se o usuário passar de 5 sessões completas, as mais antigas
+   * são revogadas, o que limita o estrago de um cookie roubado.
+   *
+   * No primeiro acesso (`setup`), o mesmo código que confirma o autenticador
+   * também ativa o 2FA e gera os códigos de recuperação.
    */
   async verify(dto: VerifyDto, req: AppRequest) {
     const auth = sessionOf(req);
@@ -243,7 +260,11 @@ export class AuthService {
     });
   }
 
-  /** Deletes the current session server-side, so the cookie stops working at once. */
+  /**
+   * Encerra a sessão APAGANDO-A no servidor: o cookie deixa de valer na hora,
+   * mesmo que alguém o tenha copiado. (Só apagar o cookie no navegador não
+   * bastaria.) O logout fica registrado na auditoria.
+   */
   async logout(req: AppRequest) {
     const auth = sessionOf(req);
     await this.db.transaction(async tx => {

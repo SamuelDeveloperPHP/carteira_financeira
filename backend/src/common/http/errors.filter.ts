@@ -10,10 +10,20 @@ import { auditContext } from "./request-context";
 import { AppRequest } from "./request.types";
 
 /**
- * Last line of defence: every exception ends here. Business refusals
- * (HttpException) keep their message; anything else becomes a generic 500 so
- * internals never reach the client. Each failure is audited after the
- * transaction rolled back, and an audit write error never hides the response.
+ * Última barreira: TODA exceção da aplicação termina aqui. É o tratamento
+ * central de erros do backend (um único `catch` para todas as rotas).
+ *
+ * Regras:
+ *   - recusas de negócio (HttpException: saldo insuficiente, 404, 403...) mantêm
+ *     a própria mensagem, que é segura e em português;
+ *   - qualquer outro erro (bug, banco fora do ar) vira um 500 GENÉRICO: detalhes
+ *     internos, SQL e stack trace nunca chegam ao cliente;
+ *   - cada falha é auditada DEPOIS do rollback da transação, para a evidência
+ *     sobreviver;
+ *   - se a própria auditoria falhar, a resposta ao usuário sai mesmo assim.
+ *
+ * A resposta traz o `correlationId`, que liga o erro à linha de log e ao evento
+ * de auditoria da mesma requisição.
  */
 @Catch()
 export class ErrorsFilter implements ExceptionFilter {

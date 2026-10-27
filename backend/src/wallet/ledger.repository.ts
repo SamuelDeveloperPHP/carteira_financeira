@@ -3,17 +3,20 @@ import { Database, Queryable } from "../common/database/database.service";
 import { Movement, NewMovement } from "./wallet.types";
 
 /**
- * SQL for wallets, movements and entries. Movements and entries are append-only:
- * the application role has no UPDATE/DELETE on them, and triggers refuse it too.
+ * SQL de carteiras, movimentos e lançamentos. Movimentos e lançamentos são
+ * IMUTÁVEIS: o usuário do banco usado pela API não tem UPDATE/DELETE nelas e
+ * gatilhos também recusam. A única coisa que se altera é o saldo da carteira,
+ * sempre acompanhado do lançamento que o explica.
  */
 @Injectable()
 export class LedgerRepository {
   constructor(private readonly db: Database) {}
 
   /**
-   * Locks the wallets (FOR UPDATE) and returns their balances in cents. Row
-   * locks are taken in a stable order (by id) so two opposite transfers
-   * cannot deadlock each other.
+   * Bloqueia as carteiras (FOR UPDATE) e devolve os saldos em centavos. Enquanto
+   * a transação não termina, nenhuma outra consegue alterar essas carteiras: é a
+   * base da proteção contra gasto duplo. O ORDER BY garante a MESMA ordem de
+   * bloqueio em toda transação, evitando deadlock entre transferências opostas.
    */
   async lockWallets(q: Queryable, ids: string[]): Promise<Map<string, number>> {
     const { rows } = await q.query(
@@ -22,6 +25,7 @@ export class LedgerRepository {
     );
     return new Map(rows.map(r => [r.user_id, Number(r.balance)]));
   }
+  /** Grava o movimento (a "ordem") e devolve a linha criada. */
   async insertMovement(q: Queryable, m: NewMovement): Promise<Movement> {
     return (
       await q.query(
@@ -30,7 +34,11 @@ export class LedgerRepository {
       )
     ).rows[0];
   }
-  /** Adds a signed amount to a wallet and returns the new balance (CHECK blocks negatives). */
+  /**
+   * Soma um valor COM SINAL ao saldo (negativo debita, positivo credita) e devolve
+   * o novo saldo. A conta é feita pelo banco (`balance+$1`), não lida e regravada
+   * pela aplicação, e o CHECK da tabela recusa saldo negativo como última defesa.
+   */
   async applyDelta(q: Queryable, userId: string, delta: number) {
     const { rows } = await q.query(
       "UPDATE wallets SET balance=balance+$1 WHERE user_id=$2 RETURNING balance",
@@ -38,6 +46,7 @@ export class LedgerRepository {
     );
     return Number(rows[0].balance);
   }
+  /** Grava o lançamento de UMA carteira: o delta e o saldo resultante (base do extrato e da conciliação). */
   async insertEntry(
     q: Queryable,
     movementId: string,
@@ -50,10 +59,11 @@ export class LedgerRepository {
       [movementId, userId, delta, balanceAfter]
     );
   }
+  /** Busca um movimento pelo id (usado para validar a devolução). */
   async findMovement(q: Queryable, id: string): Promise<Movement | undefined> {
     return (await q.query("SELECT * FROM movements WHERE id=$1", [id])).rows[0];
   }
-  /** True when the transfer was already reversed (a unique index also enforces it). */
+  /** True se a transferência já foi devolvida (o UNIQUE em original_id também impõe isso no banco). */
   async hasRefund(q: Queryable, originalId: string) {
     const result = await q.query(
       "SELECT id FROM movements WHERE original_id=$1",
@@ -61,6 +71,7 @@ export class LedgerRepository {
     );
     return (result.rowCount ?? 0) > 0;
   }
+  /** Saldo atual de uma carteira (leitura simples, sem bloqueio); undefined se não existir. */
   async balanceOf(userId: string): Promise<number | undefined> {
     const row = (
       await this.db.pool.query("SELECT balance FROM wallets WHERE user_id=$1", [
@@ -70,9 +81,12 @@ export class LedgerRepository {
     return row ? Number(row.balance) : undefined;
   }
   /**
-   * A user's entries, newest first, with counterparties and the refund link.
-   * Asks for one extra row so the caller can tell whether another page exists.
-   * `limit` is a server constant (never user input), hence the interpolation.
+   * Extrato do usuário, do mais novo ao mais antigo, com o nome de quem enviou e
+   * de quem recebeu e o vínculo com a devolução (`refund_id`), se houver. Parte
+   * dos LANÇAMENTOS (entries), então `delta` e `balance_after` já são do ponto
+   * de vista de quem consulta. Pede uma linha extra para saber se há próxima
+   * página. `limit` é constante do servidor (nunca entrada do usuário), por isso
+   * pode ser interpolado; `offset` e `userId` vão como parâmetros.
    */
   async statement(userId: string, offset: number, limit: number) {
     return (

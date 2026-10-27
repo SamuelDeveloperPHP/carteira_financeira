@@ -18,7 +18,11 @@ const uuidPipe = new ParseUUIDPipe({
   exceptionFactory: () => new BadRequestException("Identificador inválido."),
 });
 
-/** Master-only auditing endpoints: reads only, no route changes any data. */
+/**
+ * Endpoints de auditoria exclusivos do master. Todas as rotas são GET: nenhuma
+ * altera dados. `@Roles("master")` na classe vale para todas; o guard barra
+ * clientes comuns com 403. Os UUIDs de rota são validados antes de chegar ao serviço.
+ */
 @Controller("admin")
 @Roles("master")
 export class AdminController {
