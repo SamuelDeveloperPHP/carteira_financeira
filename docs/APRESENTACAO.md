@@ -64,7 +64,7 @@ Além disso, **idempotência**: repetir a mesma requisição (clique duplo, falh
 Siga o roteiro de [ENTREGA.md](ENTREGA.md). Sequência sugerida:
 
 1. Cadastre dois usuários e configure o autenticador (QR code).
-2. Credite saldo pelo comando do operador.
+2. Use "Adicionar saldo" para inserir o saldo inicial (simulado).
 3. Faça uma transferência e mostre o diálogo de confirmação.
 4. No segundo usuário, **devolva** a transferência e mostre o vínculo com a original.
 5. Tente transferir **sem saldo** e mostre a recusa sem alteração de saldos.
@@ -93,8 +93,8 @@ Se o banco vazar, os hashes não funcionam como cookie. O token tem 256 bits ale
 **Por que 2FA obrigatório?**
 Uma senha vazada, sozinha, não dá acesso ao dinheiro. O guard global exige sessão completa em qualquer rota sem decorador.
 
-**Por que não há endpoint de depósito?**
-Quem criasse saldo pela API seria um risco enorme. O depósito só existe pelo comando local do operador, atrás de uma interface de provedor, e fica desligado fora da demonstração.
+**O usuário pode criar o próprio saldo? Isso não é um risco?**
+Na demonstração sim, de forma controlada: `POST /deposits` credita só a carteira da sessão (não existe campo de destino), com teto de R$ 10.000,00 por operação, 20 por hora, idempotência e auditoria da origem. Passa pelo mesmo caminho do depósito do operador (provedor, razão, auditoria) e é desligado por `DEMO_DEPOSITS` fora da demonstração. Com dinheiro real, o usuário não confirma o próprio pagamento: um banco ou gateway o faria por webhook assinado, e essa porta deixaria de existir. A conciliação continua válida, pois o dinheiro só entra como movimento `deposit`.
 
 **Como evitaria enumeração de usuários?**
 Mensagens iguais para "e-mail não existe" e "senha errada", mesmo tempo de resposta (hash falso), resposta idêntica na recuperação de senha e cadastro com mensagem genérica.
@@ -133,7 +133,7 @@ backend/
 ├── src/
 │   ├── main.ts        inicialização e segurança HTTP
 │   ├── app.module.ts  composição + guard, filtro e pipe globais
-│   ├── operator.ts    comando local: criar master, depositar
+│   ├── operator.ts    comando local: criar master, depositar em qualquer carteira
 │   ├── common/        banco, auditoria, limite de tentativas, segurança, DTOs, HTTP
 │   ├── auth/          cadastro, login, 2FA, recuperação de senha
 │   ├── wallet/        razão, transferência, devolução, depósito, idempotência

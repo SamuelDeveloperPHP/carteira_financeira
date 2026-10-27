@@ -25,13 +25,17 @@ Host `127.0.0.1`, porta `5433`, banco `carteira`, usuário `postgres`. A senha �
 
 ## Adicionar saldo de demonstração
 
-Após cadastrar o destinatário, execute como operador local:
+**Pela tela (saldo inicial):** na aba "Minha carteira", use "Adicionar saldo", informe o valor em reais e confirme. O valor é simulado, vai somente para a sua própria carteira e é limitado a R$ 10.000,00 por adição e 20 adições por hora. Cada clique repetido por falha de rede não credita duas vezes. Esse recurso só funciona com `DEMO_DEPOSITS=true` (já configurado no `compose.yaml` de demonstração); sem a variável, a API responde "Depósitos simulados desabilitados.". O master não tem carteira e não pode adicionar saldo.
+
+**Pelo operador local** (qualquer carteira, sem o teto acima):
 
 ```powershell
 docker compose --env-file .docker.env exec api node dist/operator.js deposit usuario@example.com 10000 deposito-demo-001
 ```
 
-`10000` significa R$ 100,00. Repita a mesma referência apenas para repetir a mesma operação; ela não será creditada duas vezes. Uma nova entrada exige outra referência. Não há endpoint público de depósito e o master não pode criar depósitos pela sessão administrativa.
+`10000` significa R$ 100,00. Repita a mesma referência apenas para repetir a mesma operação; ela não será creditada duas vezes. Uma nova entrada exige outra referência.
+
+Nos dois casos o crédito passa pelo mesmo caminho (provedor, razão, idempotência e auditoria) e aparece no extrato como "Depósito simulado". Em produção, com um banco real, quem confirma o pagamento é o provedor e a adição pelo próprio usuário deixaria de existir.
 
 ## Recuperar a senha
 
