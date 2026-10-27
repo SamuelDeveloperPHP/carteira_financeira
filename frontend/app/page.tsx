@@ -99,6 +99,23 @@ const cash = (v: number | string) =>
     Number(v) / 100
   );
 const date = (v: string) => new Date(v).toLocaleString("pt-BR");
+// Teto de uma adição de saldo (R$ 10.000,00, em centavos). Espelha o limite do
+// servidor, que é quem de fato o impõe; aqui serve só para responder na hora.
+const SELF_DEPOSIT_MAX_CENTS = 1_000_000;
+
+// Converte o texto digitado ("25,50" ou "25.5") em CENTAVOS inteiros, sem usar
+// ponto flutuante: separa reais e centavos como texto e combina com inteiros
+// (25*100 + 50). O servidor valida de novo; esta checagem só dá resposta rápida.
+function toCents(text: string): number {
+  if (!/^\d{1,10}([,.]\d{1,2})?$/.test(text))
+    throw new Error("Informe um valor válido, como 25,50.");
+  const [w, d = ""] = text.replace(",", ".").split(".");
+  const value = Number(w) * 100 + Number(d.padEnd(2, "0"));
+  if (value < 1 || value > 1000000000000)
+    throw new Error("Informe um valor positivo dentro do limite.");
+  return value;
+}
+
 // Tradução dos códigos técnicos da API para texto de tela.
 const labels: Record<string, string> = {
   deposit: "Depósito simulado",
@@ -307,7 +324,8 @@ export default function Home() {
       hasMore: false,
     });
   const [recipient, setRecipient] = useState(""),
-    [amount, setAmount] = useState("");
+    [amount, setAmount] = useState(""),
+    [topUp, setTopUp] = useState("");
   // Chaves de idempotência. Ficam em useRef (não em estado) porque não afetam a
   // tela e precisam sobreviver entre cliques:
   //  - `request`: a chave da transferência em andamento. Se o usuário clicar de
@@ -316,6 +334,7 @@ export default function Home() {
   //    Dados diferentes geram chave nova.
   //  - `refundKeys`: uma chave por transferência devolvida.
   const request = useRef<{ payload: string; key: string } | null>(null),
+    depositRequest = useRef<{ amount: number; key: string } | null>(null),
     refundKeys = useRef<Record<string, string>>({});
   const [rotatePassword, setRotatePassword] = useState(""),
     [rotateCode, setRotateCode] = useState("");
@@ -525,17 +544,35 @@ export default function Home() {
       notify("info", "Sessão encerrada com segurança.");
     });
   }
-  // Converte o texto digitado ("25,50" ou "25.5") em CENTAVOS inteiros, sem usar
-  // ponto flutuante: separa reais e centavos como texto e combina com inteiros
-  // (25*100 + 50). O servidor valida de novo; esta checagem só dá resposta rápida.
-  function cents() {
-    if (!/^\d{1,10}([,.]\d{1,2})?$/.test(amount))
-      throw new Error("Informe um valor válido, como 25,50.");
-    const [w, d = ""] = amount.replace(",", ".").split(".");
-    const value = Number(w) * 100 + Number(d.padEnd(2, "0"));
-    if (value < 1 || value > 1000000000000)
-      throw new Error("Informe um valor positivo dentro do limite.");
-    return value;
+  // Adicionar saldo (simulado): (1) valida o valor e o teto, (2) pede confirmação,
+  // (3) envia com chave de idempotência e (4) mostra a mensagem devolvida pela
+  // API. Se a rede falhar e o usuário clicar de novo com o MESMO valor, a chave é
+  // reaproveitada e o servidor não credita duas vezes.
+  async function addBalance(e: FormEvent) {
+    e.preventDefault();
+    await work(async () => {
+      const value = toCents(topUp);
+      if (value > SELF_DEPOSIT_MAX_CENTS)
+        throw new Error("O valor máximo por adição é R$ 10.000,00.");
+      const confirmed = await confirmAction({
+        title: "Adicionar saldo",
+        html: `Adicionar <strong>${cash(value)}</strong> (valor simulado) à sua carteira?`,
+        confirmText: "Adicionar",
+      });
+      if (!confirmed) return;
+      if (depositRequest.current?.amount !== value)
+        depositRequest.current = { amount: value, key: crypto.randomUUID() };
+      const r = await api<{ message: string }>(
+        "/deposits",
+        "POST",
+        { amount: value },
+        depositRequest.current.key
+      );
+      depositRequest.current = null;
+      setTopUp("");
+      await loadWallet();
+      notify("success", r.message);
+    });
   }
   // Transferir: (1) valida o valor, (2) confere o saldo para resposta imediata
   // (a verificação que vale é a do servidor, dentro da transação), (3) pede
@@ -543,7 +580,7 @@ export default function Home() {
   async function transfer(e: FormEvent) {
     e.preventDefault();
     await work(async () => {
-      const value = cents();
+      const value = toCents(amount);
       if (value > balance) throw new Error("Saldo insuficiente.");
       const confirmed = await confirmAction({
         title: "Confirmar transferência",
@@ -567,7 +604,7 @@ export default function Home() {
       setRecipient("");
       setAmount("");
       await loadWallet();
-      notify("success", `Transferência concluída. Referência: ${r.id}`);
+      notify("success", `${r.message} Referência: ${r.id}`);
     });
   }
   // Devolver (reversão pedida pelo usuário): só aparece para quem RECEBEU a
@@ -580,16 +617,16 @@ export default function Home() {
         confirmText: "Devolver",
       });
       if (!confirmed) return;
-      // One idempotency key per transfer: a retry never refunds twice.
+      // Uma chave de idempotência por transferência: repetir o clique nunca devolve duas vezes.
       refundKeys.current[m.id] ??= crypto.randomUUID();
-      await api(
+      const r = await api<{ message: string }>(
         `/transfers/${m.id}/refund`,
         "POST",
         {},
         refundKeys.current[m.id]
       );
       await loadWallet(statement.page);
-      notify("success", "Valor devolvido integralmente ao remetente.");
+      notify("success", r.message);
     });
   }
   // Navegação entre as abas; cada aba carrega seus dados ao ser aberta.
@@ -1078,14 +1115,27 @@ export default function Home() {
                     <span className="tag success">
                       Carteira em reais · Simulação
                     </span>
-                    <div className="balance-note">
-                      <h3>Como adicionar saldo?</h3>
-                      <p className="muted mb-0">
-                        Nesta demonstração, o operador confirma um depósito
-                        simulado. Você também pode receber transferências de
-                        outros usuários.
+                    {/* Saldo inicial: o próprio usuário adiciona valor simulado à sua carteira. */}
+                    <form className="balance-note" onSubmit={addBalance}>
+                      <h3>Adicionar saldo</h3>
+                      <p className="muted small">
+                        Valor simulado, até R$ 10.000,00 por adição. Você também
+                        pode receber transferências de outros usuários.
                       </p>
-                    </div>
+                      <Field label="Valor em reais">
+                        <input
+                          className="form-control"
+                          inputMode="decimal"
+                          placeholder="0,00"
+                          required
+                          value={topUp}
+                          onChange={e => setTopUp(e.target.value)}
+                        />
+                      </Field>
+                      <button className="btn btn-primary" disabled={busy}>
+                        {busy ? "Processando…" : "Adicionar saldo"}
+                      </button>
+                    </form>
                   </section>
                   <section className="panel">
                     <h2>Fazer uma transferência</h2>
@@ -1539,7 +1589,7 @@ export default function Home() {
                 <h2>Uma carteira para demonstrar o fluxo completo</h2>
                 <p>
                   Os saldos são simulados. Cada conta começa com zero, recebe
-                  depósitos confirmados pelo operador ou transferências de
+                  saldo adicionado pelo próprio usuário ou transferências de
                   outras contas e pode enviar valores a usuários cadastrados.
                 </p>
                 <h3>Devolução com saldo disponível</h3>
