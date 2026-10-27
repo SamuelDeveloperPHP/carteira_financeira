@@ -349,6 +349,11 @@ export class Auth {
         "INSERT INTO sessions(token_hash,user_id,stage,expires_at,context) VALUES($1,$2,'full',now()+interval '8 hours',$3)",
         [S.digest(value), user.id, session.context]
       );
+      // At most 5 concurrent full sessions per user; the oldest are revoked.
+      await c.query(
+        "DELETE FROM sessions WHERE user_id=$1 AND stage='full' AND token_hash NOT IN (SELECT token_hash FROM sessions WHERE user_id=$1 AND stage='full' ORDER BY created_at DESC, token_hash LIMIT 5)",
+        [user.id]
+      );
       await this.audit.record(
         "auth.login",
         user.id,

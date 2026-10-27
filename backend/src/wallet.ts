@@ -318,12 +318,6 @@ export class Wallet {
         req.auth.user_id,
       ])
     ).rows[0];
-    await this.audit.record(
-      "wallet.balance.view",
-      req.auth.user_id,
-      req.auth.user_id,
-      S.context(req)
-    );
     return { balance: Number(row.balance), currency: "BRL", simulated: true };
   }
 }

@@ -1,6 +1,6 @@
 # Backlog — Carteira financeira
 
-Status: implementado para demonstração Docker. Situação por item, evidências de testes e limitações em [docs/ENTREGA.md](docs/ENTREGA.md). Valores exclusivamente simulados.
+Status: implementado para demonstração Docker, incluindo os itens P1 (CF-16 e CF-17) e a recuperação de senha por link de 7 minutos (CF-04). Situação por item, evidências de testes e limitações em [docs/ENTREGA.md](docs/ENTREGA.md). Valores exclusivamente simulados.
 
 Prazo informado: 3 dias. Contexto: desafio backend para vaga sênior.
 
@@ -74,6 +74,7 @@ Essas premissas complementam o enunciado e devem constar na documentação da en
 - Login exige senha e código válido, com limite de tentativas e prevenção de reutilização do mesmo código aceito.
 - Segredo TOTP é protegido em repouso; códigos de recuperação são armazenados como hashes e usados uma única vez.
 - Troca ou remoção do autenticador exige reautenticação e não permite contornar o 2FA obrigatório.
+- Recuperação de senha por link de uso único com validade de 7 minutos, resposta idêntica para contas existentes ou não, encerramento de todas as sessões e 2FA ainda obrigatório após a redefinição.
 
 ### Movimentação financeira
 

@@ -85,6 +85,21 @@ class Errors implements ExceptionFilter {
         ? error.message
         : "Não foi possível concluir. Tente novamente usando a mesma solicitação.";
     try {
+      if (
+        !req.auth?.user_id &&
+        !req.targetResource &&
+        !(await this.audit.allowAnonymous(S.context(req).ip))
+      ) {
+        console.log(
+          JSON.stringify({
+            event: "audit.suppressed",
+            correlationId: req.correlationId,
+            status,
+          })
+        );
+        res.status(status).json({ message, correlationId: req.correlationId });
+        return;
+      }
       await this.audit.record(
         `${req.method} ${req.path}`,
         req.auth?.user_id || null,

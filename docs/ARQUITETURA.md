@@ -36,6 +36,7 @@ Requisições repetidas são serializadas por chave de idempotência e escopo. D
 - Segredo TOTP cifrado com AES-256-GCM; chave externa ao código.
 - Oito códigos de recuperação de uso único, guardados como hashes e exibidos somente na ativação.
 - Sessões opacas aleatórias; apenas hashes ficam no banco. Etapa parcial expira em 10 minutos; completa em 8 horas.
+- No máximo 5 sessões completas simultâneas por usuário; ao entrar uma nova, as mais antigas são revogadas. Não há tela para listar ou encerrar sessões individualmente.
 - Cookies HttpOnly e SameSite=Strict; POST exige origem permitida e cabeçalho específico.
 - Limites persistidos no PostgreSQL: login por conta/IP, segundo fator, cadastro e operações autenticadas.
 - Cadastro não recebe perfil; master nasce exclusivamente no provisionamento local e também exige 2FA.
@@ -44,7 +45,7 @@ Requisições repetidas são serializadas por chave de idempotência e escopo. D
 
 ## Auditoria e localização
 
-Eventos contêm autor quando identificado, recurso, data do servidor, resultado, motivo, correlação, IP, navegador e localização quando disponível. Tentativas de login com conta conhecida são associadas ao recurso da conta, mesmo sem autor autenticado. Consultas do master também são registradas.
+Eventos contêm autor quando identificado, recurso, data do servidor, resultado, motivo, correlação, IP, navegador e localização quando disponível. Tentativas de login com conta conhecida são associadas ao recurso da conta, mesmo sem autor autenticado. Consultas do master também são registradas. Como a trilha é somente de inclusão, o ruído anônimo (rotas inexistentes, e-mails desconhecidos) tem orçamento de 100 eventos por IP a cada 15 minutos; o excedente vira uma linha `audit.suppressed` no log, sem dados pessoais. Eventos de conta conhecida ou de usuário autenticado nunca são descartados. A consulta de saldo não gera evento; o extrato, sim.
 
 A credencial do serviço não tem UPDATE/DELETE em auditoria, movimentações ou lançamentos. Gatilhos também recusam mutações do histórico. Isso protege contra alterações pela aplicação, mas não constitui armazenamento inviolável contra um administrador do banco com poder de alterar o esquema.
 

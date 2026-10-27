@@ -17,7 +17,7 @@ Abra **http://localhost:3080**. O projeto no Docker Desktop chama-se `carteira_f
 - Crie uma conta pela interface. Ela começa com saldo zero.
 - Faça login e cadastre um aplicativo autenticador pelo QR Code. Guarde os códigos de recuperação.
 - O master usa o e-mail e a senha aleatória de `.local/master.json`. Seu primeiro login também exige configurar o autenticador. Não compartilhe esse arquivo.
-- `.docker.env` contém segredos locais gerados pelo instalador. Não publique esse arquivo nem o conteúdo de `.local/`.
+- `.docker.env` contém segredos locais gerados pelo instalador. Não publique esse arquivo nem o conteúdo de `.local/`. Ambos são ignorados pelo Git e não vêm ao clonar o repositório: `scripts/setup.ps1` os cria na primeira execução.
 
 ## Acessar PostgreSQL pelo DBeaver
 

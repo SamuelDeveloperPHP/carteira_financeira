@@ -353,6 +353,85 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
       assert.equal(await balance(a), 2000);
     });
     await t.test(
+      "25 saídas simultâneas gastam o saldo exatamente uma vez",
+      async () => {
+        const payer = await account("Eva"),
+          payee = await account("Fabio");
+        await wallet.deposit(payer.email, 10000, `burst-${suffix}`, ctx);
+        const results = await Promise.all(
+          Array.from({ length: 25 }, () => transfer(payer, payee, 1000))
+        );
+        const statuses = results.map(r => r.status);
+        assert.equal(statuses.filter(s => s === 201).length, 10);
+        assert.equal(statuses.filter(s => s === 400).length, 15);
+        assert.equal(await balance(payer), 0);
+        assert.equal(await balance(payee), 10000);
+        const { rows } = await owner.query(
+          "SELECT count(*)::int AS n,coalesce(sum(delta),0)::int AS total FROM entries WHERE user_id IN ($1,$2)",
+          [payer.id, payee.id]
+        );
+        // 1 depósito + 10 débitos + 10 créditos; soma = o depósito.
+        assert.deepEqual(rows[0], { n: 21, total: 10000 });
+      }
+    );
+    await t.test(
+      "no máximo 5 sessões completas por usuário; as mais antigas são revogadas",
+      async () => {
+        const g = await account("Gil");
+        const ip = { "X-Forwarded-For": "192.0.2.210" };
+        const cookies = [g.cookie];
+        for (const code of g.recovery.slice(0, 6)) {
+          const login = await call(
+            "/auth/login",
+            "POST",
+            { email: g.email, password: pass },
+            "",
+            undefined,
+            ip
+          );
+          const verified = await call(
+            "/auth/verify",
+            "POST",
+            { code },
+            login.cookie
+          );
+          assert.equal(verified.status, 201);
+          cookies.push(verified.cookie);
+        }
+        assert.equal(cookies.length, 7);
+        for (const old of cookies.slice(0, 2))
+          assert.equal((await call("/wallet", "GET", undefined, old)).status, 401);
+        for (const live of cookies.slice(2))
+          assert.equal((await call("/wallet", "GET", undefined, live)).status, 200);
+      }
+    );
+    await t.test(
+      "ruído anônimo tem orçamento por IP e consultas de saldo não poluem a trilha",
+      async () => {
+        // IP único por execução: o banco de teste conserva a trilha das anteriores.
+        const ip = `2001:db8::${suffix.slice(0, 4)}:${suffix.slice(4)}`;
+        for (let i = 0; i < 110; i++)
+          await call("/wallet", "GET", undefined, "", undefined, {
+            "X-Forwarded-For": ip,
+          });
+        assert.equal(
+          (
+            await owner.query(
+              "SELECT count(*)::int AS n FROM audit_events WHERE ip=$1",
+              [ip]
+            )
+          ).rows[0].n,
+          100
+        );
+        const events = async () =>
+          (await owner.query("SELECT count(*)::int AS n FROM audit_events"))
+            .rows[0].n;
+        const before = await events();
+        await balance(a);
+        assert.equal(await events(), before);
+      }
+    );
+    await t.test(
       "falha no crédito reverte débito, lançamento e evidência de sucesso",
       async () => {
         const before = [await balance(a), await balance(b)];
