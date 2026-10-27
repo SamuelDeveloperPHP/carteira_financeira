@@ -41,6 +41,15 @@ test("valores inválidos de transferência são recusados", async () => {
   );
 });
 
+test("adição de saldo aceita até R$ 10.000,00 e recusa valores inválidos ou campos extras", async () => {
+  assert.equal((await parse(walletDto.DepositDto, { amount: 1000000 })).amount, 1000000);
+  await rejects(walletDto.DepositDto, { amount: 1000001 }, "O valor máximo por adição é R$ 10.000,00.");
+  for (const amount of [0, -5, 1.5, "100", null, undefined])
+    await rejects(walletDto.DepositDto, { amount }, "Valor deve ser positivo, em centavos inteiros.");
+  // A carteira de destino nunca vem do corpo: campo extra derruba a requisição.
+  await rejects(walletDto.DepositDto, { amount: 100, userId: "outro" }, "Campos inválidos.");
+});
+
 test("campos desconhecidos não passam, evitando escalonamento de perfil", async () => {
   await rejects(
     authDto.RegisterDto,

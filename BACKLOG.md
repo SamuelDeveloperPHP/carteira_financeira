@@ -87,7 +87,7 @@ Essas premissas complementam o enunciado e devem constar na documentação da en
 
 **CF-05 — Critérios de aceite**
 - Mecanismo restrito de demonstração credita valor positivo e registra origem e referência.
-- Usuário comum e master não podem criar depósitos arbitrários pelas suas sessões.
+- O usuário comum pode adicionar saldo simulado somente à PRÓPRIA carteira (saldo inicial), com teto por operação, limite de frequência, idempotência e auditoria; o master não pode e o operador local segue disponível para qualquer carteira.
 - Repetir a mesma confirmação não credita novamente; o mecanismo de simulação fica desabilitado fora do ambiente previsto.
 - Isola o mecanismo de depósito simulado das regras da carteira por uma interface de integração, permitindo acrescentar um provedor real futuramente sem tratar a simulação como confirmação bancária.
 

@@ -101,7 +101,16 @@ export function createWorld(wallets = {}) {
     audit
   );
   world.deposits = (provider = { name: "test", confirm: async () => {} }) =>
-    new depositsService.DepositsService(db, users, ledger, idempotency, audit, provider);
+    new depositsService.DepositsService(
+      db,
+      users,
+      ledger,
+      idempotency,
+      audit,
+      { throttle: async (...args) => world.throttled.push(args) },
+      provider
+    );
+  world.throttled = [];
   world.addUser = (name, email, balance = 0) => {
     state.users.set(email, name);
     state.wallets.set(name, balance);

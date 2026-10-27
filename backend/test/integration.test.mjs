@@ -210,19 +210,72 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
       assert(verified.headers.get("set-cookie").includes("HttpOnly"));
       assert(verified.headers.get("set-cookie").includes("SameSite=Strict"));
     });
+    await t.test("depósito do operador é idempotente", async () => {
+      const ref = `deposit-${suffix}`;
+      const one = await wallet.deposit(a.email, 10000, ref, ctx);
+      const two = await wallet.deposit(a.email, 10000, ref, ctx);
+      assert.equal(one.id, two.id);
+      assert.equal(await balance(a), 10000);
+      await assert.rejects(() => wallet.deposit(a.email, 10001, ref, ctx));
+    });
     await t.test(
-      "depósito controlado, idempotente e sem endpoint público",
+      "o usuário adiciona saldo à própria carteira, com limite e mensagem",
       async () => {
-        const ref = `deposit-${suffix}`;
-        const one = await wallet.deposit(a.email, 10000, ref, ctx);
-        const two = await wallet.deposit(a.email, 10000, ref, ctx);
-        assert.equal(one.id, two.id);
-        assert.equal(await balance(a), 10000);
-        await assert.rejects(() => wallet.deposit(a.email, 10001, ref, ctx));
+        const d = await account("saldo-inicial");
+        const add = (amount, key, who = d) =>
+          call("/deposits", "POST", { amount }, who.cookie, key);
+        assert.equal(await balance(d), 0);
+        const key = randomUUID();
+        const first = await add(5000, key);
+        assert.equal(first.status, 201);
+        assert.equal(first.data.kind, "deposit");
+        assert.equal(first.data.message, "Saldo adicionado à sua carteira.");
+        assert.equal(await balance(d), 5000);
+        // Repetir o pedido (mesma chave e dados) devolve o original e não credita de novo.
+        const again = await add(5000, key);
+        assert.equal(again.status, 201);
+        assert.equal(again.data.id, first.data.id);
+        assert.equal(await balance(d), 5000);
+        // A mesma chave com outro valor é conflito; saldo intacto.
+        assert.equal((await add(6000, key)).status, 409);
+        assert.equal(await balance(d), 5000);
+        // Teto por operação, valores inválidos e ausência de chave.
+        const tooMuch = await add(1000001, randomUUID());
+        assert.equal(tooMuch.status, 400);
+        assert.equal(tooMuch.data.message, "O valor máximo por adição é R$ 10.000,00.");
+        for (const amount of [0, -1, 1.5])
+          assert.equal((await add(amount, randomUUID())).status, 400);
         assert.equal(
-          (await call("/deposits", "POST", { amount: 10000 }, a.cookie)).status,
-          404
+          (await call("/deposits", "POST", { amount: 100 }, d.cookie)).status,
+          400
         );
+        // Não há como escolher a carteira de destino: o campo é recusado.
+        assert.equal(
+          (
+            await call(
+              "/deposits",
+              "POST",
+              { amount: 100, userId: a.id },
+              d.cookie,
+              randomUUID()
+            )
+          ).status,
+          400
+        );
+        assert.equal(await balance(d), 5000);
+        // Sem sessão não adiciona saldo.
+        assert.equal(
+          (await call("/deposits", "POST", { amount: 100 }, "", randomUUID()))
+            .status,
+          401
+        );
+        // O valor entra no razão como depósito e a conciliação continua correta.
+        const events = await owner.query(
+          "SELECT action,actor_id,details->>'origin' AS origin FROM audit_events WHERE actor_id=$1 AND action='deposit.completed'",
+          [d.id]
+        );
+        assert.equal(events.rowCount, 1);
+        assert.equal(events.rows[0].origin, "self-service");
       }
     );
     await t.test("validação e isolamento das contas", async () => {

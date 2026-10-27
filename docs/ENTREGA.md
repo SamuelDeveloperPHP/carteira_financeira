@@ -4,7 +4,7 @@
 
 1. Execute `scripts/setup.ps1` e abra http://localhost:3080.
 2. Cadastre duas contas fictícias e confirme o saldo inicial zero. Configure o autenticador e guarde a recuperação em cada uma.
-3. Pelo comando local de operador descrito no README, credite R$ 100,00 na primeira conta.
+3. Na primeira conta, use "Adicionar saldo" para inserir R$ 100,00 (saldo inicial simulado). O comando local do operador, descrito no README, continua disponível.
 4. Na primeira conta, transfira R$ 30,00 para o e-mail da segunda; confira R$ 70,00 e R$ 30,00 nos extratos.
 5. Na segunda, devolva os R$ 30,00 e confira o vínculo com a transferência original.
 6. Demonstre uma tentativa com saldo insuficiente, sem alteração dos saldos.
@@ -21,7 +21,7 @@ docker compose --env-file .docker.env --profile test run --rm tests
 
 Banco de testes separado, com armazenamento temporário. O teste recusa uma URL cujo banco não termine em `_test`. As credenciais da aplicação de teste também têm permissões restritas; a conexão de proprietário é usada apenas para preparar cenários e injetar falhas controladas nesse banco.
 
-Suíte validada em 27/10/2026: **60 testes aprovados**: 5 unitários de segurança, 37 unitários de regras (transferência, devolução, depósito e queda do provedor, rollback simulado, falha do próprio rollback, DTOs, guard e recuperação de senha, com repositórios em memória) e a suíte de integração contra PostgreSQL com seus cenários. Abrange recuperação de senha (link de 7 minutos, uso único), 25 saídas simultâneas sobre o mesmo saldo, limite de 5 sessões por usuário, orçamento de auditoria para ruído anônimo, saldo zero, 2FA obrigatório, recuperação de uso único, depósito controlado/idempotente, autorização, concorrência financeira, devolução integral, saldo insuficiente, rollback provocado no crédito, restrições do histórico, consultas master, localização, limitação de tentativas, rotação do autenticador e logout. Os erros 500 registrados durante o cenário de falha provocada são esperados pelo teste.
+Suíte validada em 27/10/2026: **64 testes aprovados**: 5 unitários de segurança, 40 unitários de regras (transferência, devolução, depósito do operador e do usuário, queda do provedor, rollback simulado, falha do próprio rollback, DTOs, guard e recuperação de senha, com repositórios em memória) e a suíte de integração contra PostgreSQL com seus cenários. Abrange recuperação de senha (link de 7 minutos, uso único), 25 saídas simultâneas sobre o mesmo saldo, limite de 5 sessões por usuário, orçamento de auditoria para ruído anônimo, saldo zero, 2FA obrigatório, recuperação de uso único, depósito controlado/idempotente, autorização, concorrência financeira, devolução integral, saldo insuficiente, rollback provocado no crédito, restrições do histórico, consultas master, localização, limitação de tentativas, rotação do autenticador e logout. Os erros 500 registrados durante o cenário de falha provocada são esperados pelo teste.
 
 As imagens Docker compilam backend e frontend com TypeScript. A instalação das dependências das imagens informou zero vulnerabilidades conhecidas no momento da verificação; isso não substitui uma auditoria de segurança de produção.
 
