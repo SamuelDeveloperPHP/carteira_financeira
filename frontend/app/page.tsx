@@ -1,12 +1,33 @@
 "use client";
+/*
+ * Tela única da aplicação (Next.js, componente de cliente).
+ *
+ * Mapa do arquivo:
+ *   1. Tipos            - formato dos dados que a API devolve
+ *   2. Utilitários      - formatação (R$, data), chamada à API e localização
+ *   3. Componentes      - campos, senha com mostrar/ocultar, marca, paginação
+ *   4. Home()           - estado + ações (login, 2FA, recuperação, transferência...)
+ *   5. JSX              - login/cadastro/2FA, carteira do usuário e área do master
+ *
+ * Segurança no navegador: a sessão vive em cookie HttpOnly (o JavaScript não o
+ * enxerga, então um XSS não o rouba). Nada sensível é guardado em localStorage.
+ * Mensagens ao usuário passam por ./alerts (SweetAlert2).
+ */
 import { useEffect, useRef, useState, FormEvent, ReactNode } from "react";
 import { confirmAction, escapeHtml, notify } from "./alerts";
+
+// ---------------------------------------------------------------------------
+// 1. Tipos (espelham as respostas da API)
+// ---------------------------------------------------------------------------
 type User = {
   id: string;
   name: string;
   email: string;
   role: "user" | "master";
 };
+// Uma linha do extrato. Valores monetários chegam como TEXTO em centavos
+// (bigint do banco); `delta` é o efeito na carteira de quem consulta
+// (negativo = saiu, positivo = entrou). `refund_id` preenchido = já devolvida.
 type Movement = {
   id: string;
   kind: string;
@@ -23,6 +44,8 @@ type Movement = {
   refund_id: string | null;
   created_at: string;
 };
+// Localização declarada pelo navegador. NÃO é verificada: serve de pista na
+// auditoria, nunca de prova de onde a pessoa está.
 type LocationData = {
   status: string;
   latitude?: number;
@@ -30,6 +53,7 @@ type LocationData = {
   accuracy?: number;
   capturedAt?: string;
 };
+// Evento da trilha de auditoria (tela do master): quem, o quê, de onde, resultado.
 type AuditEvent = {
   id: string;
   actor_name: string;
@@ -50,7 +74,10 @@ type Account = User & {
   totp_enabled: boolean;
   created_at: string;
 };
+// Formato padrão de toda listagem paginada da API.
 type List<T> = { items: T[]; page: number; hasMore: boolean };
+// Indicadores do painel de monitoramento do master, incluindo a conciliação
+// (soma dos saldos x soma dos depósitos) e os alertas.
 type Metrics = {
   users: number;
   movements: number;
@@ -61,11 +88,18 @@ type Metrics = {
   reconciliation: { balanced: boolean; mismatchedWallets: number };
   alerts: { level: string; message: string }[];
 };
+// ---------------------------------------------------------------------------
+// 2. Utilitários
+// ---------------------------------------------------------------------------
+
+// Centavos -> "R$ 25,50". O banco guarda inteiros; a divisão por 100 só
+// acontece aqui, na hora de exibir.
 const cash = (v: number | string) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
     Number(v) / 100
   );
 const date = (v: string) => new Date(v).toLocaleString("pt-BR");
+// Tradução dos códigos técnicos da API para texto de tela.
 const labels: Record<string, string> = {
   deposit: "Depósito simulado",
   transfer: "Transferência",
@@ -76,6 +110,8 @@ const labels: Record<string, string> = {
   unavailable: "Indisponível",
   timeout: "Tempo esgotado",
 };
+// Erro devolvido pela API, com o status HTTP. A mensagem já vem segura e em
+// português, pronta para ser mostrada ao usuário.
 class ApiError extends Error {
   constructor(
     message: string,
@@ -84,6 +120,13 @@ class ApiError extends Error {
     super(message);
   }
 }
+// ÚNICO ponto de saída para a API. Centralizar evita esquecer cabeçalhos.
+//  - credentials "same-origin": envia o cookie de sessão só para o próprio site;
+//  - cache "no-store": saldo e extrato nunca vêm de cache do navegador;
+//  - X-Wallet-Request: prova ao servidor que a chamada vem desta aplicação
+//    (defesa contra CSRF, junto com o cabeçalho Origin);
+//  - Idempotency-Key (opcional): usada nas operações que movem dinheiro, para
+//    que repetir o pedido não pague duas vezes.
 async function api<T = any>(
   path: string,
   method = "GET",
@@ -101,6 +144,7 @@ async function api<T = any>(
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
+  // Se a resposta não for JSON (ex.: gateway fora do ar), usa mensagem genérica.
   const data = await r
     .json()
     .catch(() => ({ message: "Serviço indisponível. Tente novamente." }));
@@ -108,6 +152,9 @@ async function api<T = any>(
     throw new ApiError(data.message || "Não foi possível concluir.", r.status);
   return data;
 }
+// Pede a localização ao navegador no login, para a auditoria. É OPCIONAL: se o
+// usuário negar, o sistema registra "denied" e o login segue normalmente. O
+// timeout de 7 s evita travar a tela esperando o GPS.
 async function locate(): Promise<LocationData> {
   if (!navigator.geolocation) return { status: "unavailable" };
   return new Promise(resolve =>
@@ -129,6 +176,12 @@ async function locate(): Promise<LocationData> {
     )
   );
 }
+// ---------------------------------------------------------------------------
+// 3. Componentes pequenos e reutilizáveis
+// ---------------------------------------------------------------------------
+
+// Rótulo + campo. O <label> envolve o input, então clicar no texto foca o campo
+// e leitores de tela associam os dois.
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="field d-block">
@@ -137,6 +190,10 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
     </label>
   );
 }
+// Campo de senha com botão Mostrar/Ocultar. O estado "visível" é local a cada
+// campo e volta a oculto ao recarregar. `aria-pressed` informa o estado do botão
+// a leitores de tela; `autoComplete` permite ao gerenciador de senhas salvar ou
+// sugerir a senha certa (current-password x new-password).
 function PasswordInput({
   value,
   onChange,
@@ -183,6 +240,8 @@ function Brand() {
     </div>
   );
 }
+// Paginação anterior/próxima. `hasMore` vem da API (que pede uma linha a mais
+// para saber se há outra página), sem precisar contar o total.
 function Pager({
   value,
   change,
@@ -213,7 +272,14 @@ function Pager({
   );
 }
 
+// ---------------------------------------------------------------------------
+// 4. Home: estado e ações
+// ---------------------------------------------------------------------------
 export default function Home() {
+  // Autenticação. `stage` espelha o estágio da sessão no servidor:
+  //   login -> sem sessão · setup -> cadastrando o autenticador ·
+  //   challenge -> digitar o código do 2FA · full -> autenticado.
+  // `ready` evita piscar a tela de login enquanto /auth/status ainda carrega.
   const [ready, setReady] = useState(false),
     [user, setUser] = useState<User | null>(null),
     [stage, setStage] = useState("login");
@@ -242,6 +308,13 @@ export default function Home() {
     });
   const [recipient, setRecipient] = useState(""),
     [amount, setAmount] = useState("");
+  // Chaves de idempotência. Ficam em useRef (não em estado) porque não afetam a
+  // tela e precisam sobreviver entre cliques:
+  //  - `request`: a chave da transferência em andamento. Se o usuário clicar de
+  //    novo com OS MESMOS dados (ex.: após timeout de rede), reaproveita a chave
+  //    e o servidor devolve o resultado original em vez de pagar duas vezes.
+  //    Dados diferentes geram chave nova.
+  //  - `refundKeys`: uma chave por transferência devolvida.
   const request = useRef<{ payload: string; key: string } | null>(null),
     refundKeys = useRef<Record<string, string>>({});
   const [rotatePassword, setRotatePassword] = useState(""),
@@ -273,6 +346,8 @@ export default function Home() {
     movement: Movement;
     events: AuditEvent[];
   } | null>(null);
+  // Mostra o erro ao usuário (modal SweetAlert2). Se a API disser que a sessão
+  // expirou (401), volta para a tela de login em vez de deixar a tela "morta".
   function error(e: unknown) {
     notify(
       "error",
@@ -284,6 +359,9 @@ export default function Home() {
       setStage("login");
     }
   }
+  // Envelope de toda ação do usuário: liga o "ocupado" (desabilita botões, evita
+  // clique duplo), executa, trata qualquer erro de forma única e SEMPRE desliga o
+  // "ocupado" no finally. É o equivalente do try/catch do backend.
   async function work(fn: () => Promise<void>) {
     setBusy(true);
     try {
@@ -294,6 +372,7 @@ export default function Home() {
       setBusy(false);
     }
   }
+  // Saldo e extrato são buscados juntos (Promise.all), em paralelo.
   async function loadWallet(p = 1) {
     const [w, s] = await Promise.all([
       api<{ balance: number }>("/wallet"),
@@ -317,6 +396,8 @@ export default function Home() {
     setExpanded(null);
     setMap(null);
   }
+  // Chamado quando o usuário fica autenticado: o master começa na lista de
+  // contas, o cliente comum na carteira.
   async function initialize(u: User) {
     setUser(u);
     setStage("full");
@@ -324,10 +405,13 @@ export default function Home() {
     if (u.role === "master") setAccounts(await api("/admin/users"));
     else await loadWallet();
   }
+  // Ao abrir a página: (1) lê o link de recuperação de senha, se houver, e (2)
+  // pergunta ao servidor em que ponto do login o cookie está. `active` impede
+  // atualizar estado depois que o componente foi desmontado.
   useEffect(() => {
     let active = true;
-    // The reset token travels in the URL fragment, which is never sent to the
-    // server; it is removed from the address bar as soon as it is read.
+    // O token de recuperação viaja no FRAGMENTO da URL (#reset=...), que nunca é
+    // enviado ao servidor; é removido da barra de endereço assim que lido.
     const readToken = () => {
       const token = /^#reset=([a-f0-9]{64})$/.exec(location.hash)?.[1];
       if (!token) return;
@@ -357,6 +441,11 @@ export default function Home() {
       window.removeEventListener("hashchange", readToken);
     };
   }, []);
+  // Formulário de entrada/cadastro. No cadastro cria a conta (saldo zero) e
+  // volta ao login. No login pede a localização (opcional), envia e-mail+senha e
+  // avança para o estágio devolvido pelo servidor: "setup" (mostra o QR code do
+  // autenticador) ou "challenge" (pede o código). A senha é apagada do estado
+  // assim que enviada.
   async function login(e: FormEvent) {
     e.preventDefault();
     await work(async () => {
@@ -378,6 +467,8 @@ export default function Home() {
       if (r.stage === "setup") setEnrollment(await api("/auth/setup"));
     });
   }
+  // Recuperação de senha, passo 1: pede o link. A resposta é sempre a mesma,
+  // exista ou não a conta, para não revelar quais e-mails estão cadastrados.
   async function forgot(e: FormEvent) {
     e.preventDefault();
     await work(async () => {
@@ -390,6 +481,8 @@ export default function Home() {
       notify("success", r.message);
     });
   }
+  // Recuperação de senha, passo 2: define a nova senha com o token do link
+  // (válido por 7 minutos e de uso único). O 2FA continua obrigatório depois.
   async function resetPassword(e: FormEvent) {
     e.preventDefault();
     await work(async () => {
@@ -404,6 +497,8 @@ export default function Home() {
       notify("success", r.message);
     });
   }
+  // Segundo fator: envia o código de 6 dígitos (ou de recuperação). Na primeira
+  // vez, a resposta traz os códigos de recuperação, exibidos UMA única vez.
   async function verify(e: FormEvent) {
     e.preventDefault();
     await work(async () => {
@@ -415,6 +510,8 @@ export default function Home() {
       notify("success", "Acesso confirmado.");
     });
   }
+  // Encerra a sessão no servidor (o cookie deixa de valer na hora) e limpa todo
+  // dado sensível da tela.
   async function logout() {
     await work(async () => {
       await api("/auth/logout", "POST", {});
@@ -428,6 +525,9 @@ export default function Home() {
       notify("info", "Sessão encerrada com segurança.");
     });
   }
+  // Converte o texto digitado ("25,50" ou "25.5") em CENTAVOS inteiros, sem usar
+  // ponto flutuante: separa reais e centavos como texto e combina com inteiros
+  // (25*100 + 50). O servidor valida de novo; esta checagem só dá resposta rápida.
   function cents() {
     if (!/^\d{1,10}([,.]\d{1,2})?$/.test(amount))
       throw new Error("Informe um valor válido, como 25,50.");
@@ -437,6 +537,9 @@ export default function Home() {
       throw new Error("Informe um valor positivo dentro do limite.");
     return value;
   }
+  // Transferir: (1) valida o valor, (2) confere o saldo para resposta imediata
+  // (a verificação que vale é a do servidor, dentro da transação), (3) pede
+  // confirmação, (4) envia com chave de idempotência e (5) recarrega o extrato.
   async function transfer(e: FormEvent) {
     e.preventDefault();
     await work(async () => {
@@ -467,6 +570,8 @@ export default function Home() {
       notify("success", `Transferência concluída. Referência: ${r.id}`);
     });
   }
+  // Devolver (reversão pedida pelo usuário): só aparece para quem RECEBEU a
+  // transferência. É sempre integral e única; o servidor impõe as duas regras.
   async function refund(m: Movement) {
     await work(async () => {
       const confirmed = await confirmAction({
@@ -487,6 +592,7 @@ export default function Home() {
       notify("success", "Valor devolvido integralmente ao remetente.");
     });
   }
+  // Navegação entre as abas; cada aba carrega seus dados ao ser aberta.
   async function switchView(next: string) {
     await work(async () => {
       setView(next);
@@ -497,6 +603,7 @@ export default function Home() {
       if (next === "metrics") setMetrics(await api("/admin/metrics"));
     });
   }
+  // Master: abre o extrato de uma conta. A consulta é registrada na auditoria.
   async function inspect(a: Account) {
     await work(async () => {
       setSelected(a);
@@ -504,6 +611,8 @@ export default function Home() {
       setStatement(await api(`/admin/users/${a.id}/statement`));
     });
   }
+  // Gera o arquivo de texto dos códigos de recuperação inteiramente no navegador
+  // (Blob local): os códigos não são enviados a lugar nenhum nem gravados.
   function downloadCodes() {
     const blob = new Blob(
       [
@@ -519,6 +628,8 @@ export default function Home() {
     URL.revokeObjectURL(url);
     notify("success", "Códigos baixados. Guarde o arquivo em local seguro.");
   }
+  // Tabela de movimentações, reutilizada nas duas visões: a do cliente (com o
+  // botão Devolver) e a do master (com o botão Rastrear). `admin` escolhe a ação.
   function transactions(admin = false) {
     return (
       <>
@@ -609,6 +720,11 @@ export default function Home() {
       </>
     );
   }
+  // ---------------------------------------------------------------------------
+  // 5. Renderização
+  // ---------------------------------------------------------------------------
+
+  // Enquanto /auth/status não responde, mostra "carregando" em vez de piscar o login.
   if (!ready)
     return (
       <main className="loading" role="status">
@@ -621,6 +737,8 @@ export default function Home() {
         Ambiente de demonstração — valores simulados. Nenhuma conta bancária
         real é movimentada.
       </div>
+      {/* Sem usuário autenticado: login, cadastro, recuperação de senha e 2FA.
+          Com usuário: carteira (cliente) ou área de auditoria (master). */}
       {!user ? (
         <main className="auth-grid">
           <section className="auth-story">
@@ -950,6 +1068,7 @@ export default function Home() {
                 </div>
               </section>
             )}
+            {/* Aba do cliente: saldo, formulário de transferência e extrato. */}
             {view === "wallet" && (
               <>
                 <div className="wallet-grid">
@@ -1016,6 +1135,7 @@ export default function Home() {
                 </section>
               </>
             )}
+            {/* Aba do master: busca de contas e extrato da conta escolhida (somente leitura). */}
             {view === "accounts" && (
               <>
                 <section className="panel">
@@ -1149,6 +1269,7 @@ export default function Home() {
                 )}
               </>
             )}
+            {/* Aba do master: trilha de auditoria com filtros (usuário, ação, resultado, IP, período), localização e mapa em grade local. */}
             {view === "events" && (
               <section className="panel">
                 <form
@@ -1292,6 +1413,7 @@ export default function Home() {
                 </p>
               </section>
             )}
+            {/* Aba do master: monitoramento (usuários, movimentações, saldo total), conciliação e alertas operacionais. */}
             {view === "metrics" && metrics && (
               <>
                 <div className="section-head">
@@ -1350,6 +1472,7 @@ export default function Home() {
                 </section>
               </>
             )}
+            {/* Aba de segurança: troca do autenticador (pede senha + código, encerra todas as sessões e exige novo cadastro). */}
             {view === "security" && (
               <section className="panel">
                 <h2>Autenticação em dois fatores</h2>
