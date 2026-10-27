@@ -11,7 +11,14 @@ export interface Queryable {
 
 export type Transaction = PoolClient;
 
-/** PostgreSQL connection pool and unit of work for every financial operation. */
+/**
+ * Pool de conexões PostgreSQL e "unidade de trabalho" (Unit of Work) de toda
+ * operação financeira: agrupa vários comandos SQL em uma única transação
+ * atômica (tudo ou nada).
+ *
+ * Limites do pool: no máximo 15 conexões simultâneas, 5 s para obter uma e 15 s
+ * por comando. Isso evita que uma consulta presa segure o sistema inteiro.
+ */
 @Injectable()
 export class Database implements OnModuleDestroy {
   readonly pool = new Pool({
@@ -22,9 +29,12 @@ export class Database implements OnModuleDestroy {
   });
 
   /**
-   * Runs `work` atomically: COMMIT when it resolves, ROLLBACK when it throws.
-   * The caller's error is always the one propagated, even if the ROLLBACK
-   * itself fails (e.g. the connection dropped), so the root cause is not hidden.
+   * Executa `work` de forma atômica: COMMIT se terminar bem, ROLLBACK se lançar
+   * qualquer erro. É esta função que garante que um erro no meio de uma
+   * transferência desfaz TUDO (débito, crédito, lançamentos, auditoria).
+   *
+   * O erro propagado é sempre o do chamador, mesmo que o próprio ROLLBACK falhe
+   * (ex.: a conexão caiu), para que a causa raiz não seja escondida.
    */
   async transaction<T>(work: (tx: Transaction) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
@@ -38,8 +48,8 @@ export class Database implements OnModuleDestroy {
       try {
         await client.query("ROLLBACK");
       } catch {
-        // A failed rollback means the connection is unusable: discard it
-        // instead of returning it to the pool.
+        // Se até o ROLLBACK falhou, a conexão está inutilizável: é descartada
+        // (release(true)) em vez de voltar ao pool e contaminar a próxima operação.
         broken = true;
       }
       throw error;

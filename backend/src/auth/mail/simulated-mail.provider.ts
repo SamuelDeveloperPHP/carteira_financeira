@@ -1,9 +1,14 @@
 import { Injectable } from "@nestjs/common";
 import { MailProvider } from "./mail.provider";
 
-// Demonstration mailer: no e-mail leaves the machine. With DEMO_MAIL=true the
-// link is written to the API console so the flow can be shown; a real provider
-// (SMTP/API) would implement MailProvider and replace this class in AuthModule.
+/**
+ * Envio de e-mail SIMULADO, só para demonstração: nenhuma mensagem sai da
+ * máquina. Com DEMO_MAIL=true o link é escrito no log da API, para mostrar o
+ * fluxo sem servidor de e-mail. Sem a variável, não faz nada.
+ *
+ * Um provedor real (SMTP, API transacional) implementaria `MailProvider` e
+ * substituiria esta classe no AuthModule, sem alterar as regras de recuperação.
+ */
 @Injectable()
 export class SimulatedMail implements MailProvider {
   readonly name = "simulation";
@@ -18,6 +23,9 @@ export class SimulatedMail implements MailProvider {
         to,
         subject: "Redefinição de senha",
         expiresInMinutes: minutes,
+        // O token vai no FRAGMENTO da URL (depois do #). Fragmentos não são
+        // enviados ao servidor nem aparecem em logs de acesso ou no cabeçalho
+        // Referer, o que reduz o vazamento do link.
         link: `${origin}/#reset=${token}`,
       })
     );

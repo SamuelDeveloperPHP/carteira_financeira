@@ -18,9 +18,13 @@ import { LedgerService } from "./ledger.service";
 import { Movement } from "./wallet.types";
 
 /**
- * Credits a wallet after an external payment provider confirms the money.
- * Not exposed over HTTP: only the local operator command calls this, so no
- * end user can create balance.
+ * Credita uma carteira DEPOIS que um provedor externo confirma o pagamento.
+ *
+ * Não é exposto por HTTP: só o comando local do operador chama este serviço.
+ * Assim nenhum usuário, nem um invasor com sessão válida, consegue criar saldo.
+ * O depósito é a única forma de o dinheiro ENTRAR no sistema; transferências e
+ * devoluções apenas o movem. Por isso a soma dos depósitos é a referência da
+ * conciliação.
  */
 @Injectable()
 export class DepositsService {
@@ -34,9 +38,12 @@ export class DepositsService {
   ) {}
 
   /**
-   * @param referenceValue provider's unique reference; doubles as idempotency
-   *   key, so confirming the same payment twice credits it once.
-   * @param provider overridable for tests; defaults to the injected provider.
+   * @param referenceValue referência única do provedor. Serve também como chave
+   *   de idempotência: confirmar o mesmo pagamento duas vezes credita uma só.
+   * @param provider substituível nos testes; por padrão usa o provedor injetado.
+   *
+   * Entradas chegam como `unknown` (linha de comando, sem DTO), por isso são
+   * validadas aqui com as mesmas regras do restante do sistema.
    */
   async deposit(
     emailValue: unknown,
@@ -48,12 +55,15 @@ export class DepositsService {
     const recipientEmail = email(emailValue),
       amount = money(amountValue),
       reference = idempotencyKey(referenceValue);
+    // A confirmação externa acontece ANTES de abrir a transação: não se deve
+    // segurar uma transação (e bloqueios) esperando uma chamada de rede lenta.
     try {
       await provider.confirm(reference);
     } catch (error) {
-      // A deliberate refusal (e.g. provider not enabled) keeps its own status.
+      // Uma recusa deliberada (ex.: provedor desabilitado, 403) mantém seu status.
       if (error instanceof HttpException) throw error;
-      // No money is credited unless the provider confirmed the payment.
+      // Falha inesperada (provedor fora do ar): vira 503 e NADA é creditado,
+      // pois sem confirmação não há dinheiro.
       logUnexpected("deposit.provider.failed", ctx.correlationId, error, {
         provider: provider.name,
       });
