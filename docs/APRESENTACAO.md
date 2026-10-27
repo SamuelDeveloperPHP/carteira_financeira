@@ -102,6 +102,9 @@ Mensagens iguais para "e-mail não existe" e "senha errada", mesmo tempo de resp
 **Por que um monólito e não microsserviços?**
 Para o escopo, o monólito modular reduz complexidade operacional e mantém a consistência em uma transação local. Os módulos já têm fronteiras claras, então separar depois é viável.
 
+**Como funcionam as notificações?**
+Quem recebe uma transferência, e quem enviou uma transferência que foi devolvida, ganha um aviso. Ele é criado na MESMA transação do movimento: se houver rollback, o aviso some junto (ninguém é avisado de dinheiro que não chegou), e uma repetição idempotente não duplica. O sino da barra consulta um contador barato a cada 15 s; a página lista só as não lidas e, ao ler, o aviso some (a linha fica no banco com `read_at`). É a única tabela do domínio com UPDATE permitido à API, e isso não toca nos movimentos imutáveis.
+
 **Como trocaria o provedor de e-mail/pagamento?**
 Implementar a interface (`MailProvider` ou `DepositProvider`) e trocar o *binding* no módulo. Nenhuma regra de negócio muda.
 
@@ -137,6 +140,7 @@ backend/
 │   ├── common/        banco, auditoria, limite de tentativas, segurança, DTOs, HTTP
 │   ├── auth/          cadastro, login, 2FA, recuperação de senha
 │   ├── wallet/        razão, transferência, devolução, depósito, idempotência
+│   ├── notifications/ avisos de transferência e devolução recebidas
 │   └── admin/         consultas do master (auditor)
 └── test/              unitários e integração
 frontend/app/          page.tsx (telas) e alerts.ts (SweetAlert2)
