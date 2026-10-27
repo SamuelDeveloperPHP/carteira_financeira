@@ -20,6 +20,18 @@ export const FULL_SESSION_MINUTES = 8 * 60;
 /** Máximo de sessões completas simultâneas por usuário; ao exceder, as mais antigas são revogadas (limita o dano de um cookie roubado). */
 export const MAX_FULL_SESSIONS = 5;
 
+/**
+ * Teto de uma adição de saldo feita pelo PRÓPRIO usuário: R$ 10.000,00. Limita o
+ * "dinheiro de brinquedo" por operação na demonstração, mantendo valores
+ * plausíveis nos relatórios. O operador local não está sujeito a este teto.
+ */
+export const SELF_DEPOSIT_MAX_CENTS = 1_000_000;
+
+/** Quantas adições de saldo por usuário em cada janela abaixo. */
+export const SELF_DEPOSIT_PER_HOUR = 20;
+/** Janela do limite acima: 1 hora. */
+export const SELF_DEPOSIT_WINDOW_SECONDS = 3600;
+
 /** Itens por página no extrato e na lista de contas. */
 export const PAGE_SIZE = 20;
 

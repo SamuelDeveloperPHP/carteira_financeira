@@ -93,11 +93,15 @@ export const CodeField = () =>
  * Valor em CENTAVOS: inteiro, de 1 até o limite. `IsInt` recusa 1.5, "100" (texto),
  * NaN e null; `Min(1)` recusa zero e negativos (que seriam um "saque" disfarçado).
  */
-export const MoneyField = () =>
+export const MoneyField = (
+  max = MAX_CENTS,
+  maxMessage = "Valor deve ser positivo, em centavos inteiros."
+) =>
   applyDecorators(
     IsInt({ message: "Valor deve ser positivo, em centavos inteiros." }),
     Min(1, { message: "Valor deve ser positivo, em centavos inteiros." }),
-    Max(MAX_CENTS, { message: "Valor deve ser positivo, em centavos inteiros." })
+    // `max` permite um teto próprio (ex.: adição de saldo) com mensagem clara.
+    Max(max, { message: maxMessage })
   );
 
 /** Identificador UUID de qualquer versão. */

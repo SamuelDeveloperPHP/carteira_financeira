@@ -1,3 +1,4 @@
+import { SELF_DEPOSIT_MAX_CENTS } from "../../common/constants";
 import { EmailField, MoneyField } from "../../common/dto/fields";
 
 /**
@@ -9,6 +10,20 @@ export class TransferDto {
   @EmailField() recipientEmail!: string;
   /** Em CENTAVOS inteiros (R$ 25,50 = 2550). Inteiro evita erro de arredondamento. */
   @MoneyField() amount!: number;
+}
+
+/**
+ * Corpo de POST /deposits ("adicionar saldo"). Também não há id de carteira: o
+ * crédito vai sempre para a conta da sessão. O teto por operação é aplicado
+ * aqui, antes de qualquer regra de negócio, com mensagem própria.
+ */
+export class DepositDto {
+  /** Em CENTAVOS inteiros, de 1 até SELF_DEPOSIT_MAX_CENTS (R$ 10.000,00). */
+  @MoneyField(
+    SELF_DEPOSIT_MAX_CENTS,
+    "O valor máximo por adição é R$ 10.000,00."
+  )
+  amount!: number;
 }
 
 /**

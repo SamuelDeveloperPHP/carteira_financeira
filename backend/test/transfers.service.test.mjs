@@ -153,6 +153,36 @@ test("depósitos simulados ficam desligados fora da demonstração", async () =>
   }
 });
 
+test("o usuário adiciona saldo só à própria carteira, com repetição segura e limite", async () => {
+  const w = world({ ana: 0, bia: 0 });
+  const first = await w.deposits().selfDeposit("ana", { amount: 5000 }, "chave-saldo-0001", w.ctx);
+  assert.equal(w.balance("ana"), 5000);
+  assert.equal(w.balance("bia"), 0);
+  assert.equal(first.kind, "deposit");
+  assert.equal(first.sender_id, null);
+  // Repetir a mesma chave não credita de novo.
+  const again = await w.deposits().selfDeposit("ana", { amount: 5000 }, "chave-saldo-0001", w.ctx);
+  assert.equal(again.id, first.id);
+  assert.equal(w.balance("ana"), 5000);
+  // A mesma chave com outro valor é recusada.
+  await rejectsWith(w.deposits().selfDeposit("ana", { amount: 6000 }, "chave-saldo-0001", w.ctx), 409);
+  // A chave de uma pessoa não colide com a de outra (escopo por usuário).
+  const other = await w.deposits().selfDeposit("bia", { amount: 5000 }, "chave-saldo-0001", w.ctx);
+  assert.notEqual(other.id, first.id);
+  assert.equal(w.balance("bia"), 5000);
+  // Cada tentativa passa pelo limite de frequência do próprio usuário.
+  assert(w.throttled.every(([key, limit, seconds]) => key.startsWith("deposit:") && limit === 20 && seconds === 3600));
+  // Auditoria: o autor é o usuário e a origem fica registrada.
+  assert.equal(w.state.audit.find(e => e.action === "deposit.completed").actor, "ana");
+});
+
+test("sem provedor habilitado, adicionar saldo é recusado e nada muda", async () => {
+  const w = world({ ana: 0 });
+  const disabled = { name: "off", confirm: async () => { throw new ForbiddenException("off"); } };
+  await rejectsWith(w.deposits(disabled).selfDeposit("ana", { amount: 5000 }, "chave-saldo-0002", w.ctx), 403);
+  assert.equal(w.balance("ana"), 0);
+});
+
 test("queda inesperada do provedor vira 503 e nada é creditado", async () => {
   const w = world();
   const down = { name: "down", confirm: async () => { throw new Error("rede"); } };

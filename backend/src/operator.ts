@@ -13,13 +13,14 @@ import { DepositsService } from "./wallet/deposits.service";
 /**
  * Comando LOCAL do operador (não é uma rota HTTP).
  *
- * Existe para as duas ações que nenhum usuário pela web pode fazer:
+ * Existe para ações que nenhum usuário pela web pode fazer:
  *   - `master`  : cria a conta do auditor (somente leitura);
- *   - `deposit` : credita saldo simulado numa carteira.
+ *   - `deposit` : credita saldo simulado em QUALQUER carteira e sem o teto que
+ *                 vale para o usuário (que só adiciona à própria, via POST /deposits).
  *
- * Por que fora da API? Se "criar master" ou "depositar" fossem endpoints, um
- * invasor que os descobrisse ganharia privilégio ou dinheiro. Aqui exigem acesso
- * ao servidor (docker exec), e tudo é auditado com o autor "operator-cli".
+ * Por que "criar master" fica fora da API? Se fosse um endpoint, um invasor que o
+ * descobrisse ganharia privilégio. Aqui exige acesso ao servidor (docker exec), e
+ * tudo é auditado com o autor "operator-cli".
  *
  * Reaproveita os mesmos serviços da API (createApplicationContext sobe o
  * contêiner de injeção do Nest sem abrir porta HTTP), então as regras de
