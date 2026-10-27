@@ -9,6 +9,8 @@ POST exige `Origin: http://localhost:3080`, `Content-Type: application/json` e `
 | GET `/health` | — | Público |
 | POST `/auth/register` | `name`, `email`, `password` (12–128 caracteres) | Público |
 | POST `/auth/login` | `email`, `password`, `location` opcional | Público; retorna estágio `setup` ou `challenge` |
+| POST `/auth/forgot-password` | `email` | Público; resposta idêntica para conta existente ou não; link válido por 7 minutos |
+| POST `/auth/reset-password` | `token` (64 hex), `password` (12–128) | Público; token de uso único; encerra todas as sessões e mantém o 2FA exigido |
 | GET `/auth/status` | — | Sessão parcial ou completa |
 | GET `/auth/setup` | — | Sessão de configuração; retorna QR, chave e URI |
 | POST `/auth/verify` | `code` TOTP ou recuperação | Sessão parcial; retorna usuário e cookie completo |

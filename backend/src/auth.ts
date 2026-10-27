@@ -4,20 +4,131 @@ import {
   ConflictException,
   HttpException,
   ForbiddenException,
+  BadRequestException,
 } from "@nestjs/common";
 import { randomUUID, randomBytes } from "node:crypto";
 import QRCode from "qrcode";
 import { Database } from "./db";
 import { Audit } from "./audit";
+import { SimulatedMail } from "./mail";
 import * as S from "./security";
+
+export const RESET_MINUTES = 7;
 
 @Injectable()
 export class Auth {
   private dummyHash = S.hashPassword(S.token());
   constructor(
     private readonly db: Database,
-    private readonly audit: Audit
+    private readonly audit: Audit,
+    private readonly mail: SimulatedMail
   ) {}
+  // Same answer whether or not the account exists, so it cannot be enumerated.
+  async forgot(body: unknown, req: any) {
+    const b = S.object(body, ["email"]);
+    const email = S.email(b.email);
+    await this.throttle(`forgot-ip:${req.ip}`, 10);
+    await this.throttle(`forgot-email:${email}`, 3);
+    const user = (
+      await this.db.pool.query("SELECT id,email FROM users WHERE email=$1", [
+        email,
+      ])
+    ).rows[0];
+    req.targetResource = user?.id || null;
+    if (user) {
+      const value = S.token();
+      await this.db.transaction(async c => {
+        await c.query(
+          "DELETE FROM password_resets WHERE user_id=$1 OR expires_at<now()",
+          [user.id]
+        );
+        await c.query(
+          "INSERT INTO password_resets(token_hash,user_id,expires_at) VALUES($1,$2,now()+($3*interval '1 minute'))",
+          [S.digest(value), user.id, RESET_MINUTES]
+        );
+        await this.audit.record(
+          "auth.recovery.requested",
+          user.id,
+          user.id,
+          S.context(req),
+          { expiresInMinutes: RESET_MINUTES },
+          "success",
+          null,
+          c
+        );
+      });
+      try {
+        await this.mail.sendPasswordReset(user.email, value, RESET_MINUTES);
+      } catch {
+        console.error(
+          JSON.stringify({
+            event: "mail.failed",
+            correlationId: req.correlationId,
+          })
+        );
+      }
+    } else
+      await this.audit.record(
+        "auth.recovery.requested",
+        null,
+        null,
+        S.context(req),
+        {},
+        "denied",
+        "unknown_account"
+      );
+    return {
+      message: `Se o e-mail estiver cadastrado, enviaremos um link válido por ${RESET_MINUTES} minutos.`,
+    };
+  }
+  // Resetting the password never disables the second factor and ends every session.
+  async reset(body: unknown, req: any) {
+    const b = S.object(body, ["token", "password"]);
+    const password = S.password(b.password);
+    await this.throttle(`reset-ip:${req.ip}`, 20);
+    if (typeof b.token !== "string" || !/^[a-f0-9]{64}$/.test(b.token))
+      throw new BadRequestException("Link inválido ou expirado.");
+    const hash = await S.hashPassword(password);
+    const token = b.token;
+    return this.db.transaction(async c => {
+      // DELETE ... RETURNING makes the token single-use even under concurrency.
+      const row = (
+        await c.query(
+          "DELETE FROM password_resets WHERE token_hash=$1 AND expires_at>now() RETURNING user_id",
+          [S.digest(token)]
+        )
+      ).rows[0];
+      if (!row)
+        throw new BadRequestException(
+          "Link inválido ou expirado. Solicite um novo."
+        );
+      req.targetResource = row.user_id;
+      await c.query("SELECT id FROM users WHERE id=$1 FOR UPDATE", [
+        row.user_id,
+      ]);
+      await c.query("UPDATE users SET password_hash=$1 WHERE id=$2", [
+        hash,
+        row.user_id,
+      ]);
+      await c.query("DELETE FROM sessions WHERE user_id=$1", [row.user_id]);
+      await c.query("DELETE FROM password_resets WHERE user_id=$1", [
+        row.user_id,
+      ]);
+      await this.audit.record(
+        "auth.password.reset",
+        row.user_id,
+        row.user_id,
+        S.context(req),
+        {},
+        "success",
+        null,
+        c
+      );
+      return {
+        message: "Senha redefinida. Entre com a nova senha e o segundo fator.",
+      };
+    });
+  }
   async throttle(key: string, limit: number, seconds = 900) {
     const { rows } = await this.db.pool.query(
       `INSERT INTO rate_limits(key,count,expires_at) VALUES($1,1,now()+($2*interval '1 second')) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN rate_limits.expires_at<now() THEN 1 ELSE rate_limits.count+1 END, expires_at=CASE WHEN rate_limits.expires_at<now() THEN EXCLUDED.expires_at ELSE rate_limits.expires_at END RETURNING count`,

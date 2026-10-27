@@ -136,6 +136,42 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
     </label>
   );
 }
+function PasswordInput({
+  value,
+  onChange,
+  autoComplete,
+  minLength = 1,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  autoComplete: string;
+  minLength?: number;
+}) {
+  const [shown, setShown] = useState(false);
+  return (
+    <div className="input-group">
+      <input
+        className="form-control"
+        type={shown ? "text" : "password"}
+        autoComplete={autoComplete}
+        required
+        minLength={minLength}
+        maxLength={128}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+      />
+      <button
+        type="button"
+        className="btn btn-outline-secondary"
+        aria-pressed={shown}
+        aria-label={shown ? "Ocultar senha" : "Mostrar senha"}
+        onClick={() => setShown(s => !s)}
+      >
+        {shown ? "Ocultar" : "Mostrar"}
+      </button>
+    </div>
+  );
+}
 function Brand() {
   return (
     <div className="brand">
@@ -185,6 +221,11 @@ export default function Home() {
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [code, setCode] = useState("");
+  const [recovery, setRecovery] = useState<"none" | "request" | "reset">(
+      "none"
+    ),
+    [resetToken, setResetToken] = useState(""),
+    [newPassword, setNewPassword] = useState("");
   const [enrollment, setEnrollment] = useState<{
       qr: string;
       secret: string;
@@ -288,6 +329,18 @@ export default function Home() {
   }
   useEffect(() => {
     let active = true;
+    // The reset token travels in the URL fragment, which is never sent to the
+    // server; it is removed from the address bar as soon as it is read.
+    const readToken = () => {
+      const token = /^#reset=([a-f0-9]{64})$/.exec(location.hash)?.[1];
+      if (!token) return;
+      history.replaceState(null, "", location.pathname + location.search);
+      setResetToken(token);
+      setRecovery("reset");
+      setNotice(null);
+    };
+    readToken();
+    window.addEventListener("hashchange", readToken);
     (async () => {
       try {
         const s = await api<{ stage: string; user: User | null }>(
@@ -305,6 +358,7 @@ export default function Home() {
     })();
     return () => {
       active = false;
+      window.removeEventListener("hashchange", readToken);
     };
   }, []);
   async function login(e: FormEvent) {
@@ -326,6 +380,32 @@ export default function Home() {
       setCode("");
       setStage(r.stage);
       if (r.stage === "setup") setEnrollment(await api("/auth/setup"));
+    });
+  }
+  async function forgot(e: FormEvent) {
+    e.preventDefault();
+    await work(async () => {
+      const r = await api<{ message: string }>(
+        "/auth/forgot-password",
+        "POST",
+        { email }
+      );
+      setRecovery("none");
+      setNotice({ type: "success", text: r.message });
+    });
+  }
+  async function resetPassword(e: FormEvent) {
+    e.preventDefault();
+    await work(async () => {
+      const r = await api<{ message: string }>(
+        "/auth/reset-password",
+        "POST",
+        { token: resetToken, password: newPassword }
+      );
+      setNewPassword("");
+      setResetToken("");
+      setRecovery("none");
+      setNotice({ type: "success", text: r.message });
     });
   }
   async function verify(e: FormEvent) {
@@ -588,7 +668,61 @@ export default function Home() {
           <section className="auth-form">
             <div className="auth-form-inner">
               {noticeBox}
-              {stage === "login" ? (
+              {stage === "login" && recovery === "request" ? (
+                <>
+                  <h2>Recuperar acesso</h2>
+                  <p className="muted">
+                    Informe seu e-mail. Se houver conta, enviaremos um link
+                    válido por 7 minutos e de uso único. O segundo fator
+                    continuará obrigatório.
+                  </p>
+                  <form onSubmit={forgot}>
+                    <Field label="E-mail">
+                      <input
+                        className="form-control"
+                        type="email"
+                        autoComplete="username"
+                        required
+                        maxLength={254}
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                      />
+                    </Field>
+                    <button disabled={busy} className="btn btn-primary w-100">
+                      {busy ? "Aguarde…" : "Enviar link"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-link w-100 mt-2"
+                      onClick={() => setRecovery("none")}
+                    >
+                      Voltar ao login
+                    </button>
+                  </form>
+                </>
+              ) : stage === "login" && recovery === "reset" ? (
+                <>
+                  <h2>Definir nova senha</h2>
+                  <p className="muted">
+                    Escolha uma nova senha. Todas as sessões serão encerradas e
+                    o código do autenticador continuará sendo exigido.
+                  </p>
+                  <form onSubmit={resetPassword}>
+                    <Field label="Nova senha">
+                      <PasswordInput
+                        autoComplete="new-password"
+                        minLength={12}
+                        value={newPassword}
+                        onChange={setNewPassword}
+                      />
+                      <small>Use pelo menos 12 caracteres.</small>
+                    </Field>
+                    <button disabled={busy} className="btn btn-primary w-100">
+                      {busy ? "Aguarde…" : "Redefinir senha"}
+                    </button>
+                  </form>
+                </>
+              ) : stage === "login" ? (
                 <>
                   <h2>
                     {register ? "Abra sua carteira" : "Acesse sua carteira"}
@@ -644,17 +778,13 @@ export default function Home() {
                       />
                     </Field>
                     <Field label="Senha">
-                      <input
-                        className="form-control"
-                        type="password"
+                      <PasswordInput
                         autoComplete={
                           register ? "new-password" : "current-password"
                         }
-                        required
                         minLength={register ? 12 : 1}
-                        maxLength={128}
                         value={password}
-                        onChange={e => setPassword(e.target.value)}
+                        onChange={setPassword}
                       />
                       {register && <small>Use pelo menos 12 caracteres.</small>}
                     </Field>
@@ -671,6 +801,18 @@ export default function Home() {
                           ? "Criar conta"
                           : "Continuar"}
                     </button>
+                    {!register && (
+                      <button
+                        type="button"
+                        className="btn btn-link w-100 mt-2"
+                        onClick={() => {
+                          setRecovery("request");
+                          setNotice(null);
+                        }}
+                      >
+                        Esqueci minha senha
+                      </button>
+                    )}
                   </form>
                 </>
               ) : (

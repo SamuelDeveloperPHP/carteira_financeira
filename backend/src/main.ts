@@ -25,6 +25,7 @@ import helmet from "helmet";
 import { Database } from "./db";
 import { Audit } from "./audit";
 import { Auth } from "./auth";
+import { SimulatedMail } from "./mail";
 import { Wallet } from "./wallet";
 import { Admin } from "./admin";
 import * as S from "./security";
@@ -45,7 +46,15 @@ class AccessGuard implements CanActivate {
       )
         throw new ForbiddenException("Origem da solicitação não autorizada.");
     }
-    if (["/api/health", "/api/auth/register", "/api/auth/login"].includes(path))
+    if (
+      [
+        "/api/health",
+        "/api/auth/register",
+        "/api/auth/login",
+        "/api/auth/forgot-password",
+        "/api/auth/reset-password",
+      ].includes(path)
+    )
       return true;
     req.auth = await this.auth.session(req.cookies?.wallet_session);
     if (path === "/api/auth/status" || path === "/api/auth/logout") return true;
@@ -139,6 +148,12 @@ class Api {
     @Res({ passthrough: true }) res: any
   ) {
     return this.session(await this.auth.login(b, req), res);
+  }
+  @Post("auth/forgot-password") forgot(@Body() b: unknown, @Req() req: any) {
+    return this.auth.forgot(b, req);
+  }
+  @Post("auth/reset-password") reset(@Body() b: unknown, @Req() req: any) {
+    return this.auth.reset(b, req);
   }
   @Get("auth/status") status(@Req() req: any) {
     return {
@@ -237,7 +252,7 @@ class Api {
 
 @Module({
   controllers: [Api],
-  providers: [Database, Audit, Auth, Wallet, Admin, AccessGuard],
+  providers: [Database, Audit, SimulatedMail, Auth, Wallet, Admin, AccessGuard],
 })
 export class AppModule {}
 export async function createApp() {

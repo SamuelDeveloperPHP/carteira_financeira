@@ -33,6 +33,16 @@ docker compose --env-file .docker.env exec api node dist/operator.js deposit usu
 
 `10000` significa R$ 100,00. Repita a mesma referência apenas para repetir a mesma operação; ela não será creditada duas vezes. Uma nova entrada exige outra referência. Não há endpoint público de depósito e o master não pode criar depósitos pela sessão administrativa.
 
+## Recuperar a senha
+
+Na tela de login, use "Esqueci minha senha". O link tem validade de 7 minutos e serve uma única vez. Como o envio de e-mail é simulado, na demonstração o link aparece no log da API:
+
+```powershell
+docker compose --env-file .docker.env logs --tail 20 api
+```
+
+Procure a linha `mail.simulated` e abra o `link` no navegador. Após redefinir, todas as sessões são encerradas e o código do autenticador continua obrigatório.
+
 ## Verificar e operar
 
 ```powershell

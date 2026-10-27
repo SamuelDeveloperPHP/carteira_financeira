@@ -39,6 +39,7 @@ Requisições repetidas são serializadas por chave de idempotência e escopo. D
 - Cookies HttpOnly e SameSite=Strict; POST exige origem permitida e cabeçalho específico.
 - Limites persistidos no PostgreSQL: login por conta/IP, segundo fator, cadastro e operações autenticadas.
 - Cadastro não recebe perfil; master nasce exclusivamente no provisionamento local e também exige 2FA.
+- Recuperação de senha: token aleatório de 256 bits, válido por 7 minutos, de uso único (`DELETE ... RETURNING`); só o hash fica no banco e um novo pedido invalida o anterior. A resposta ao pedido é igual para contas existentes ou não, com limite por IP e por e-mail. O token viaja no fragmento da URL (não vai ao servidor nem a logs de acesso) e é removido da barra de endereço ao ser lido. Redefinir a senha encerra todas as sessões e não desativa o 2FA. O envio é simulado (`DEMO_MAIL=true` escreve o link no log da API); um provedor real implementaria `MailProvider`.
 - Troca do autenticador exige senha e segundo fator/recuperação, revoga todas as sessões e bloqueia operações até a nova ativação.
 
 ## Auditoria e localização
@@ -57,7 +58,7 @@ Política desta demonstração: usar dados fictícios; manter dados somente dura
 - HTTP e cookie sem Secure somente no localhost; publicação externa exige HTTPS, cookie Secure e origens/rede configuradas. A geolocalização em celular exige contexto seguro e acesso de rede próprio, não disponível nesta configuração local.
 - Monitoramento é um painel consultado sob demanda, com healthchecks e logs. Alertas visuais surgem a partir de 5 recusas/falhas em 15 minutos ou divergência de conciliação; não há envio de notificações.
 - A grade local mostra latitude/longitude e precisão, sem mapa de ruas, geocodificação ou identificação física do dispositivo.
-- A recuperação depende de um código de reserva. Não há recuperação por e-mail/SMS nem desativação de 2FA.
+- A senha pode ser redefinida por link de 7 minutos, mas o e-mail é simulado (o link aparece no log da API com `DEMO_MAIL=true`; não deve ficar ativo fora da demonstração). A perda do autenticador depende de um código de reserva; não há desativação de 2FA nem recuperação por SMS.
 - As credenciais iniciais ficam nos arquivos locais ignorados pelo Git; o responsável deve protegê-los e controlar o acesso ao Docker.
 
 ## Evolução para dinheiro real

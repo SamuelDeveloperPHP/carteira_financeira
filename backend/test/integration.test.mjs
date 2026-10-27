@@ -6,6 +6,7 @@ import main from "../dist/main.js";
 import database from "../dist/db.js";
 import walletModule from "../dist/wallet.js";
 import security from "../dist/security.js";
+import mail from "../dist/mail.js";
 
 test("integração PostgreSQL: segurança, movimentações e auditoria", async t => {
   const ownerUrl = process.env.DATABASE_URL;
@@ -511,6 +512,100 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
           rotated.cookie
         );
         assert.notEqual(setup.data.secret, b.secret);
+      }
+    );
+    await t.test(
+      "recuperação de senha: link de 7 minutos, uso único, sem contornar o 2FA",
+      async () => {
+        const d = await account("Diana");
+        const ip = { "X-Forwarded-For": "192.0.2.200" };
+        const sent = [];
+        const mailer = app.get(mail.SimulatedMail);
+        mailer.sendPasswordReset = async (to, token) => sent.push({ to, token });
+        const ask = email =>
+          call("/auth/forgot-password", "POST", { email }, "", undefined, ip);
+        const reset = (token, password) =>
+          call(
+            "/auth/reset-password",
+            "POST",
+            { token, password },
+            "",
+            undefined,
+            ip
+          );
+        const newPass = "Outra senha forte 456!";
+        // Mesma resposta para conta existente e inexistente; nada é enviado a quem não existe.
+        const unknown = await ask(`ninguem-${suffix}@example.test`);
+        const known = await ask(d.email);
+        assert.equal(unknown.status, 201);
+        assert.equal(known.status, 201);
+        assert.equal(unknown.data.message, known.data.message);
+        assert.equal(sent.length, 1);
+        assert.equal(sent[0].to, d.email);
+        const first = sent[0].token;
+        // Só o hash fica no banco e a validade é de exatamente 7 minutos.
+        const stored = (
+          await owner.query(
+            "SELECT token_hash,extract(epoch from expires_at-created_at)::int AS ttl FROM password_resets WHERE user_id=$1",
+            [d.id]
+          )
+        ).rows;
+        assert.equal(stored.length, 1);
+        assert.equal(stored[0].ttl, 420);
+        assert.notEqual(stored[0].token_hash, first);
+        // Entradas inválidas.
+        assert.equal((await reset("0".repeat(64), newPass)).status, 400);
+        assert.equal((await reset("curto", newPass)).status, 400);
+        assert.equal((await reset(first, "curta")).status, 400);
+        // Redefinição válida encerra sessões e troca a senha.
+        const done = await reset(first, newPass);
+        assert.equal(done.status, 201);
+        assert.equal(
+          (await call("/wallet", "GET", undefined, d.cookie)).status,
+          401
+        );
+        assert.equal((await reset(first, newPass)).status, 400);
+        const old = await call("/auth/login", "POST", {
+          email: d.email,
+          password: pass,
+        }, "", undefined, ip);
+        assert.equal(old.status, 401);
+        const fresh = await call("/auth/login", "POST", {
+          email: d.email,
+          password: newPass,
+        }, "", undefined, ip);
+        // O segundo fator continua obrigatório após redefinir a senha.
+        assert.equal(fresh.data.stage, "challenge");
+        assert.equal(
+          (await call("/wallet", "GET", undefined, fresh.cookie)).status,
+          403
+        );
+        // Link expirado é recusado; um novo pedido substitui o anterior.
+        await ask(d.email);
+        await ask(d.email);
+        assert.equal(sent.length, 3);
+        assert.equal(
+          (
+            await owner.query(
+              "SELECT 1 FROM password_resets WHERE user_id=$1",
+              [d.id]
+            )
+          ).rowCount,
+          1
+        );
+        assert.equal((await reset(sent[1].token, newPass)).status, 400);
+        await owner.query(
+          "UPDATE password_resets SET expires_at=now()-interval '1 second' WHERE user_id=$1",
+          [d.id]
+        );
+        assert.equal((await reset(sent[2].token, newPass)).status, 400);
+        // Nenhum token em claro na trilha de auditoria.
+        const raw = JSON.stringify(
+          (await owner.query("SELECT * FROM audit_events")).rows
+        );
+        for (const item of sent) assert(!raw.includes(item.token));
+        assert(raw.includes("auth.recovery.requested"));
+        assert(raw.includes("auth.password.reset"));
       }
     );
     await t.test("logout revoga a sessão no servidor", async () => {

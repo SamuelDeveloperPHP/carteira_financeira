@@ -38,6 +38,7 @@ services:
       APP_ORIGINS: http://localhost:${WALLET_PORT:-3080},http://127.0.0.1:${WALLET_PORT:-3080}
       COOKIE_SECURE: "false"
       DEMO_DEPOSITS: "true"
+      DEMO_MAIL: "true"
     depends_on:
       migrate: { condition: service_completed_successfully }
     healthcheck:
