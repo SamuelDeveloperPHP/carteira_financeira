@@ -9,6 +9,12 @@ import { AuditService } from "../audit/audit.service";
 import { auditContext } from "./request-context";
 import { AppRequest } from "./request.types";
 
+/**
+ * Last line of defence: every exception ends here. Business refusals
+ * (HttpException) keep their message; anything else becomes a generic 500 so
+ * internals never reach the client. Each failure is audited after the
+ * transaction rolled back, and an audit write error never hides the response.
+ */
 @Catch()
 export class ErrorsFilter implements ExceptionFilter {
   constructor(private readonly audit: AuditService) {}

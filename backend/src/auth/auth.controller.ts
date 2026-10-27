@@ -15,6 +15,7 @@ import {
 import { PasswordRecoveryService } from "./password-recovery.service";
 import { TwoFactorService } from "./two-factor.service";
 
+/** HttpOnly (no JS access), SameSite=Strict (no cross-site sends); Secure behind HTTPS. */
 const cookieOptions = () => ({
   httpOnly: true,
   sameSite: "strict" as const,
@@ -22,6 +23,11 @@ const cookieOptions = () => ({
   path: "/api",
 });
 
+/**
+ * HTTP layer for authentication: translates requests into service calls and
+ * owns the session cookie. No business rule lives here. Each route declares
+ * its access level; without `@Access` it needs a fully authenticated session.
+ */
 @Controller("auth")
 export class AuthController {
   constructor(
@@ -30,7 +36,7 @@ export class AuthController {
     private readonly recovery: PasswordRecoveryService
   ) {}
 
-  // The opaque session token only ever travels in an HttpOnly cookie.
+  /** The opaque session token only ever travels in an HttpOnly cookie, never in the body. */
   private withSession<T extends { cookie: string; stage: string }>(
     result: T,
     res: Response
@@ -69,6 +75,7 @@ export class AuthController {
     return this.recovery.reset(dto, req);
   }
 
+  /** Lets the frontend discover which step of the login the cookie is at. */
   @Access("any-stage") @Get("status")
   status(@Req() req: AppRequest) {
     const auth = sessionOf(req);
@@ -100,6 +107,7 @@ export class AuthController {
     return this.withSession(await this.auth.verify(dto, req), res);
   }
 
+  /** Replaces the authenticator; needs a full session, password and a valid code. */
   @Post("rotate")
   async rotate(
     @Body() dto: RotateDto,

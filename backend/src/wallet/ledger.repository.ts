@@ -2,12 +2,19 @@ import { Injectable } from "@nestjs/common";
 import { Database, Queryable } from "../common/database/database.service";
 import { Movement, NewMovement } from "./wallet.types";
 
+/**
+ * SQL for wallets, movements and entries. Movements and entries are append-only:
+ * the application role has no UPDATE/DELETE on them, and triggers refuse it too.
+ */
 @Injectable()
 export class LedgerRepository {
   constructor(private readonly db: Database) {}
 
-  // Row locks are taken in a stable order (by id) so two opposite transfers
-  // cannot deadlock each other.
+  /**
+   * Locks the wallets (FOR UPDATE) and returns their balances in cents. Row
+   * locks are taken in a stable order (by id) so two opposite transfers
+   * cannot deadlock each other.
+   */
   async lockWallets(q: Queryable, ids: string[]): Promise<Map<string, number>> {
     const { rows } = await q.query(
       "SELECT user_id,balance FROM wallets WHERE user_id=ANY($1::uuid[]) ORDER BY user_id FOR UPDATE",
@@ -23,6 +30,7 @@ export class LedgerRepository {
       )
     ).rows[0];
   }
+  /** Adds a signed amount to a wallet and returns the new balance (CHECK blocks negatives). */
   async applyDelta(q: Queryable, userId: string, delta: number) {
     const { rows } = await q.query(
       "UPDATE wallets SET balance=balance+$1 WHERE user_id=$2 RETURNING balance",
@@ -45,6 +53,7 @@ export class LedgerRepository {
   async findMovement(q: Queryable, id: string): Promise<Movement | undefined> {
     return (await q.query("SELECT * FROM movements WHERE id=$1", [id])).rows[0];
   }
+  /** True when the transfer was already reversed (a unique index also enforces it). */
   async hasRefund(q: Queryable, originalId: string) {
     const result = await q.query(
       "SELECT id FROM movements WHERE original_id=$1",
@@ -60,6 +69,11 @@ export class LedgerRepository {
     ).rows[0];
     return row ? Number(row.balance) : undefined;
   }
+  /**
+   * A user's entries, newest first, with counterparties and the refund link.
+   * Asks for one extra row so the caller can tell whether another page exists.
+   * `limit` is a server constant (never user input), hence the interpolation.
+   */
   async statement(userId: string, offset: number, limit: number) {
     return (
       await this.db.pool.query(

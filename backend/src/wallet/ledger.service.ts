@@ -9,6 +9,7 @@ import { Queryable } from "../common/database/database.service";
 import { LedgerRepository } from "./ledger.repository";
 import { Movement, MovementKind } from "./wallet.types";
 
+/** Everything the ledger needs to record one movement. Amounts are in cents. */
 export interface Posting {
   kind: MovementKind;
   senderId: string | null;
@@ -18,12 +19,20 @@ export interface Posting {
   reference: string | null;
 }
 
-// Double-entry core shared by deposits, transfers and refunds. It must run inside
-// the caller's transaction: any failure here rolls the whole operation back.
+/**
+ * Double-entry core shared by deposits, transfers and refunds. It must run
+ * inside the caller's transaction: any failure here rolls the whole operation
+ * back.
+ */
 @Injectable()
 export class LedgerService {
   constructor(private readonly ledger: LedgerRepository) {}
 
+  /**
+   * Posts one movement: locks the wallets, validates funds and the recipient's
+   * cap, then writes the movement and one entry per wallet with its new balance.
+   * Wallets are locked in id order, so two opposite transfers cannot deadlock.
+   */
   async post(tx: Queryable, p: Posting): Promise<Movement> {
     const ids = ([p.senderId, p.recipientId].filter(Boolean) as string[]).sort();
     const balances = await this.ledger.lockWallets(tx, ids);

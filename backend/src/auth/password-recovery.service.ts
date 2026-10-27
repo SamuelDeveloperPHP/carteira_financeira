@@ -12,6 +12,10 @@ import { MAIL_PROVIDER, MailProvider } from "./mail/mail.provider";
 import { PasswordResetsRepository } from "./password-resets.repository";
 import { SessionsRepository } from "./sessions.repository";
 
+/**
+ * Password recovery by e-mailed link: random 256-bit token, valid for 7
+ * minutes, single use. Only its hash is stored.
+ */
 @Injectable()
 export class PasswordRecoveryService {
   constructor(
@@ -24,7 +28,11 @@ export class PasswordRecoveryService {
     @Inject(MAIL_PROVIDER) private readonly mail: MailProvider
   ) {}
 
-  // Same answer whether or not the account exists, so it cannot be enumerated.
+  /**
+   * Issues a reset link. The answer is the same whether or not the account
+   * exists, so it cannot be enumerated. A mail failure is logged but never
+   * shown, for the same reason.
+   */
   async forgot(dto: ForgotPasswordDto, req: AppRequest) {
     await this.limiter.throttle(`forgot-ip:${req.ip}`, 10);
     await this.limiter.throttle(`forgot-email:${dto.email}`, 3);
@@ -70,7 +78,11 @@ export class PasswordRecoveryService {
     };
   }
 
-  // Resetting the password never disables the second factor and ends every session.
+  /**
+   * Sets a new password with a valid link. The token is consumed with
+   * DELETE ... RETURNING, so two simultaneous uses cannot both succeed.
+   * Resetting the password never disables the second factor and ends every session.
+   */
   async reset(dto: ResetPasswordDto, req: AppRequest) {
     await this.limiter.throttle(`reset-ip:${req.ip}`, 20);
     const hash = await hashPassword(dto.password);

@@ -13,6 +13,15 @@ import { AppRequest, Role } from "./request.types";
 
 const SAFE_METHODS = ["GET", "HEAD", "OPTIONS"];
 
+/**
+ * Single global gate for every route. Order of checks:
+ * 1. trusted origin for state-changing requests (CSRF);
+ * 2. public routes pass;
+ * 3. a valid session is required;
+ * 4. unless the route says otherwise, the session must be fully authenticated
+ *    (password + second factor) and the role must match `@Roles`.
+ * Routes without decorators are therefore protected by default.
+ */
 @Injectable()
 export class AccessGuard implements CanActivate {
   constructor(
@@ -52,8 +61,10 @@ export class AccessGuard implements CanActivate {
       await this.limiter.throttle(`write:${req.auth.user_id}`, 120, 60);
     return true;
   }
-  // State-changing requests must come from the app itself (CSRF defence in depth
-  // on top of SameSite=Strict cookies).
+  /**
+   * State-changing requests must come from the app itself (CSRF defence in depth
+   * on top of SameSite=Strict cookies).
+   */
   private assertTrustedOrigin(req: AppRequest) {
     const origins = (process.env.APP_ORIGINS || "http://localhost:3080").split(
       ","

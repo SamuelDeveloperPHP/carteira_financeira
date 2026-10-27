@@ -4,6 +4,7 @@ import { AuditContext } from "../http/request.types";
 import { RateLimiter } from "../rate-limit/rate-limiter.service";
 import { AuditRepository, Outcome } from "./audit.repository";
 
+/** Writes the append-only audit trail: who did what, from where, with what result. */
 @Injectable()
 export class AuditService {
   constructor(
@@ -16,6 +17,10 @@ export class AuditService {
   allowAnonymous(ip: string, limit = 100, seconds = 900) {
     return this.limiter.allow(`audit-anon:${ip}`, limit, seconds);
   }
+  /**
+   * @param client pass the open transaction so the audit row commits or rolls
+   *   back together with the operation it describes.
+   */
   async record(
     action: string,
     actor: string | null,

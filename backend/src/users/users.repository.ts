@@ -22,6 +22,10 @@ export interface NewUser {
   role?: Role;
 }
 
+/**
+ * SQL for users and their wallets. Methods take a `Queryable` so they join the
+ * caller's transaction; reads default to the pool.
+ */
 @Injectable()
 export class UsersRepository {
   constructor(private readonly db: Database) {}
@@ -43,6 +47,7 @@ export class UsersRepository {
       ])
     ).rows[0]?.id;
   }
+  /** Row lock that serialises concurrent changes to the same user's security data. */
   async lockById(q: Queryable, id: string): Promise<UserRow> {
     return (await q.query("SELECT * FROM users WHERE id=$1 FOR UPDATE", [id]))
       .rows[0];
@@ -71,6 +76,7 @@ export class UsersRepository {
   async enableTotp(q: Queryable, id: string) {
     await q.query("UPDATE users SET totp_enabled=true WHERE id=$1", [id]);
   }
+  /** Remembers the last accepted time step so the same code cannot be replayed. */
   async recordTotpStep(q: Queryable, id: string, step: number) {
     await q.query("UPDATE users SET last_totp_step=$1 WHERE id=$2", [step, id]);
   }

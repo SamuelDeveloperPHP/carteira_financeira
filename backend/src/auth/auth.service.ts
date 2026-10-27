@@ -30,6 +30,11 @@ import { LoginDto, RegisterDto, VerifyDto } from "./dto/auth.dto";
 import { SessionsRepository } from "./sessions.repository";
 import { TwoFactorService } from "./two-factor.service";
 
+/**
+ * Registration, password login, second-factor completion and logout.
+ * Login happens in two stages: the password creates a partial session
+ * ("setup" or "challenge"); only a valid second factor promotes it to "full".
+ */
 @Injectable()
 export class AuthService {
   // Compared against when the account does not exist, so response time does not
@@ -44,6 +49,11 @@ export class AuthService {
     private readonly limiter: RateLimiter
   ) {}
 
+  /**
+   * Creates the user and a zero-balance wallet in one transaction. A duplicate
+   * e-mail (unique violation) gets a generic message so registered addresses
+   * cannot be discovered.
+   */
   async register(dto: RegisterDto, req: AppRequest) {
     await this.limiter.throttle(`register:${req.ip}`, 20);
     const hash = await hashPassword(dto.password);
@@ -81,6 +91,11 @@ export class AuthService {
     };
   }
 
+  /**
+   * Checks e-mail and password (rate limited per IP and per account) and opens
+   * a partial session. Unknown e-mail and wrong password are indistinguishable
+   * in both message and timing.
+   */
   async login(dto: LoginDto, req: AppRequest) {
     req.accessLocation = location(dto.location);
     const user = await this.users.findByEmail(dto.email);
@@ -121,6 +136,10 @@ export class AuthService {
     });
   }
 
+  /**
+   * Resolves the session cookie to its user. Only the SHA-256 of the token is
+   * stored, so a database leak does not yield usable cookies.
+   */
   async session(raw: string | undefined): Promise<SessionUser> {
     if (!raw || !/^[a-f0-9]{64}$/.test(raw))
       throw new UnauthorizedException("Entre para continuar.");
@@ -130,7 +149,11 @@ export class AuthService {
     return session;
   }
 
-  // Completes the login: password was accepted earlier, this proves the second factor.
+  /**
+   * Completes the login: the password was accepted earlier, this proves the
+   * second factor. The partial session is replaced by a new full one (token
+   * rotation) and the oldest sessions beyond the cap are revoked.
+   */
   async verify(dto: VerifyDto, req: AppRequest) {
     const auth = sessionOf(req);
     await this.limiter.throttle(`2fa:${auth.user_id}`, 10);
@@ -190,6 +213,7 @@ export class AuthService {
     });
   }
 
+  /** Deletes the current session server-side, so the cookie stops working at once. */
   async logout(req: AppRequest) {
     const auth = sessionOf(req);
     await this.db.transaction(async tx => {

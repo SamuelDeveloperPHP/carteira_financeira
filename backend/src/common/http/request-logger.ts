@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import type { NextFunction, Response } from "express";
 import { AppRequest } from "./request.types";
 
-// Correlation id + one structured line per request (never bodies or secrets).
+/**
+ * Express middleware: assigns a correlation id (returned as X-Request-Id and
+ * stored in audit events) and logs one structured line per request, never
+ * bodies or secrets. Responses are marked no-store so balances are not cached.
+ */
 export function requestLogger(
   req: AppRequest,
   res: Response,

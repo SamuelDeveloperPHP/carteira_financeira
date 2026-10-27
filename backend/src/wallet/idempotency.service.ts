@@ -3,12 +3,19 @@ import { Queryable } from "../common/database/database.service";
 import { IdempotencyRepository } from "./idempotency.repository";
 import { Movement } from "./wallet.types";
 
+/**
+ * Makes retries safe: a client that repeats a request (timeout, double click)
+ * gets the original result instead of a second movement.
+ */
 @Injectable()
 export class IdempotencyService {
   constructor(private readonly store: IdempotencyRepository) {}
 
-  // Returns the movement of an earlier identical request, nothing for a new one,
-  // and refuses a reused key that carries different data.
+  /**
+   * Returns the movement of an earlier identical request, nothing for a new one,
+   * and refuses a reused key that carries different data. The advisory lock
+   * serialises concurrent requests that share the same key.
+   */
   async replay(
     tx: Queryable,
     scope: string,
@@ -23,10 +30,12 @@ export class IdempotencyService {
       );
     return previous?.movement;
   }
-  // Serialises operations that must happen at most once per original movement.
+  /** Serialises operations that must happen at most once per original movement. */
   lockOriginal(tx: Queryable, originalId: string) {
     return this.store.lock(tx, `refund-original:${originalId}`);
   }
+
+  /** Stores the outcome so a later replay can return it. */
   remember(
     tx: Queryable,
     scope: string,
