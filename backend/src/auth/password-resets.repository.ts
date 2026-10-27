@@ -1,9 +1,14 @@
 import { Injectable } from "@nestjs/common";
 import { Queryable } from "../common/database/database.service";
 
+/** SQL dos links de redefinição de senha (tabela `password_resets`). Guarda só o hash do token. */
 @Injectable()
 export class PasswordResetsRepository {
-  // One live token per user: issuing a new one invalidates the previous.
+  /**
+   * Registra um novo link. Antes, apaga os anteriores do usuário (assim só o
+   * link MAIS RECENTE funciona) e, de passagem, limpa links expirados de
+   * qualquer conta, mantendo a tabela pequena sem precisar de rotina agendada.
+   */
   async issue(q: Queryable, userId: string, tokenHash: string, minutes: number) {
     await q.query(
       "DELETE FROM password_resets WHERE user_id=$1 OR expires_at<now()",
@@ -14,7 +19,13 @@ export class PasswordResetsRepository {
       [tokenHash, userId, minutes]
     );
   }
-  // DELETE ... RETURNING makes the token single-use even under concurrency.
+
+  /**
+   * Gasta o link: apaga e devolve o dono numa única instrução. Como o banco só
+   * deixa UMA transação apagar a mesma linha, duas tentativas simultâneas com o
+   * mesmo link nunca têm sucesso as duas (uso único mesmo sob concorrência).
+   * Link expirado não casa com `expires_at>now()` e retorna vazio.
+   */
   async consume(q: Queryable, tokenHash: string): Promise<string | undefined> {
     return (
       await q.query(
@@ -23,6 +34,8 @@ export class PasswordResetsRepository {
       )
     ).rows[0]?.user_id;
   }
+
+  /** Invalida todos os links pendentes do usuário (após trocar senha ou autenticador). */
   async deleteForUser(q: Queryable, userId: string) {
     await q.query("DELETE FROM password_resets WHERE user_id=$1", [userId]);
   }

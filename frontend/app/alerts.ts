@@ -1,13 +1,16 @@
 import Swal from "sweetalert2";
 
-// Central place for every message shown to the user. Components never talk to
-// SweetAlert2 directly, so wording and look stay consistent.
+// Único lugar que fala com o SweetAlert2. Os componentes chamam `notify` e
+// `confirmAction`, então texto, cores e comportamento dos avisos ficam
+// consistentes e podem ser trocados em um só arquivo.
 
 type Kind = "success" | "error" | "info" | "warning";
 
+// Cores alinhadas à identidade visual (verde = ação principal, cinza = cancelar).
 const colors = { confirm: "#176b57", cancel: "#526777" };
 
-// Small, self-dismissing banner for results that need no decision.
+// Aviso pequeno no canto da tela que some sozinho em 5 s, com barra de tempo.
+// Usado para resultados que não exigem decisão (sucesso, informação).
 const toast = Swal.mixin({
   toast: true,
   position: "top-end",
@@ -16,8 +19,9 @@ const toast = Swal.mixin({
   timerProgressBar: true,
 });
 
-// Success goes to a toast; failures and warnings use a modal so they are not
-// missed (and are announced to screen readers by SweetAlert2).
+// Sucesso e informação vão para o toast. Erros e alertas usam um MODAL, que
+// exige um clique: o usuário não deixa passar uma falha (e o SweetAlert2 já a
+// anuncia para leitores de tela). O texto do erro vem da API, já seguro.
 export function notify(kind: Kind, text: string) {
   if (kind === "success" || kind === "info") {
     void toast.fire({ icon: kind, title: text });
@@ -32,7 +36,9 @@ export function notify(kind: Kind, text: string) {
   });
 }
 
-// Asks the user to confirm a sensitive action. Resolves true only on "confirm".
+// Pede confirmação antes de uma ação sensível (transferir, devolver). Devolve
+// true somente se o usuário clicar em confirmar. O foco inicial fica em
+// "Cancelar": apertar Enter sem pensar não move dinheiro.
 export async function confirmAction(options: {
   title: string;
   html: string;
@@ -52,7 +58,9 @@ export async function confirmAction(options: {
   return result.isConfirmed;
 }
 
-// Values interpolated into dialog HTML must never be able to inject markup.
+// O SweetAlert2 interpreta `html` como HTML. Qualquer valor vindo do usuário
+// (e-mail do destinatário, nome) tem de passar por aqui antes de entrar no
+// texto, senão seria possível injetar marcação (XSS) no diálogo.
 export function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, c =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!
