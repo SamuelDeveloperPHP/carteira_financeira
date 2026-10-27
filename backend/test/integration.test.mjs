@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import main from "../dist/main.js";
-import database from "../dist/db.js";
-import walletModule from "../dist/wallet.js";
-import security from "../dist/security.js";
-import mail from "../dist/mail.js";
+import database from "../dist/common/database/database.service.js";
+import deposits from "../dist/wallet/deposits.service.js";
+import security from "../dist/common/security/crypto.js";
+import mail from "../dist/auth/mail/mail.provider.js";
 
 test("integração PostgreSQL: segurança, movimentações e auditoria", async t => {
   const ownerUrl = process.env.DATABASE_URL;
@@ -25,7 +25,7 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
   await app.listen(0, "127.0.0.1");
   const base = await app.getUrl();
   const db = app.get(database.Database),
-    wallet = app.get(walletModule.Wallet);
+    wallet = app.get(deposits.DepositsService);
   const suffix = randomUUID().slice(0, 8);
   const pass = "Senha de teste 123!";
   let serial = 10;
@@ -599,7 +599,7 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
         const d = await account("Diana");
         const ip = { "X-Forwarded-For": "192.0.2.200" };
         const sent = [];
-        const mailer = app.get(mail.SimulatedMail);
+        const mailer = app.get(mail.MAIL_PROVIDER);
         mailer.sendPasswordReset = async (to, token) => sent.push({ to, token });
         const ask = email =>
           call("/auth/forgot-password", "POST", { email }, "", undefined, ip);

@@ -1,13 +1,9 @@
 import { Injectable } from "@nestjs/common";
-
-export interface MailProvider {
-  readonly name: string;
-  sendPasswordReset(to: string, token: string, minutes: number): Promise<void>;
-}
+import { MailProvider } from "./mail.provider";
 
 // Demonstration mailer: no e-mail leaves the machine. With DEMO_MAIL=true the
 // link is written to the API console so the flow can be shown; a real provider
-// (SMTP/API) would implement MailProvider and replace this class.
+// (SMTP/API) would implement MailProvider and replace this class in AuthModule.
 @Injectable()
 export class SimulatedMail implements MailProvider {
   readonly name = "simulation";

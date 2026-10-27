@@ -11,15 +11,38 @@ Gateway e PostgreSQL publicam portas limitadas a 127.0.0.1: 3080 para a aplicaç
 
 ## Separação de responsabilidades
 
-- `auth.ts`: cadastro, senha, sessões, TOTP, recuperação e limitação de tentativas.
-- `wallet.ts`: regras financeiras, idempotência e contrato de integração para depósitos.
-- `audit.ts`: registro central de eventos.
-- `admin.ts`: consultas administrativas, rastreio e indicadores.
-- `db.ts`: unidade de trabalho transacional; `migrations/`: esquema versionado.
-- `main.ts`: controladores, autenticação/autorização e tratamento de erros.
-- `operator.ts`: operações locais restritas, sem endpoint público equivalente.
+O backend é um monólito modular NestJS. Cada módulo tem controlador (HTTP), serviços (regras), repositórios (SQL) e DTOs (contrato de entrada):
 
-Injeção de dependências mantém os serviços separados. SQL parametrizado torna os bloqueios e limites transacionais explícitos. Um backend único reduz a complexidade operacional do desafio. O provedor simulado de depósito implementa uma interface; um provedor real exigirá implementação, contrato e validações adicionais.
+```text
+backend/src
+├── main.ts / app.module.ts     inicialização e composição; guard, filtro e pipe globais
+├── operator.ts / migrate.ts    comandos locais (depósito, master) e migrações
+├── common/
+│   ├── database/               Database: pool e transação (unidade de trabalho)
+│   ├── audit/                  AuditService + AuditRepository (trilha somente de inclusão)
+│   ├── rate-limit/             RateLimiter + repositório (janela fixa no PostgreSQL)
+│   ├── http/                   AccessGuard, ErrorsFilter, decoradores de acesso, logger de requisições
+│   ├── dto/                    campos reutilizáveis e ValidationPipe
+│   └── security/               crypto (scrypt, AES-GCM, TOTP) e validadores
+├── users/                      UsersRepository
+├── auth/                       AuthService, TwoFactorService, PasswordRecoveryService,
+│                               repositórios de sessão/códigos/redefinição, MailProvider
+├── wallet/                     LedgerService (partida dobrada), IdempotencyService,
+│                               TransfersService (transferir/devolver), DepositsService,
+│                               WalletService (saldo/extrato), DepositProvider
+├── admin/                      AdminService + AdminRepository (leituras do master)
+└── health/                     /api/health
+```
+
+Decisões e princípios:
+
+- **Camadas:** o controlador só traduz HTTP; o serviço aplica a regra de negócio e define a transação; o repositório é o único lugar com SQL. Isso permite testar as regras com repositórios em memória (`test/helpers/memory.mjs`), sem banco.
+- **Responsabilidade única:** o razão (`LedgerService`) só lança partidas e valida saldo; idempotência, transferência, depósito e consulta são serviços distintos; `AuthService`, `TwoFactorService` e `PasswordRecoveryService` separam login, segundo fator e recuperação.
+- **Inversão de dependência:** serviços dependem de interfaces ligadas por token (`MAIL_PROVIDER`, `DEPOSIT_PROVIDER`). Trocar o provedor simulado por um real é mudar uma linha no módulo, sem tocar nas regras. Um provedor real ainda exigirá contrato, confirmação autenticada e conciliação.
+- **Acesso declarativo:** `@Access("public" | "any-stage" | "partial")` e `@Roles(...)` nas rotas, aplicados por um único `AccessGuard`. Sem decorador, a rota exige sessão completa com 2FA; o master é barrado nas rotas de usuário e vice-versa.
+- **Entrada validada por DTO:** `class-validator` com `whitelist` e `forbidNonWhitelisted`; um campo desconhecido (como `role`) derruba a requisição em vez de ser ignorado.
+- **Padrões usados:** repositório, unidade de trabalho (transação), estratégia/adaptador (provedores), idempotência por chave e impressão digital, guard e filtro de exceções do Nest.
+- SQL parametrizado torna os bloqueios e limites transacionais explícitos; um backend único reduz a complexidade operacional do desafio.
 
 ## Consistência financeira
 
