@@ -18,6 +18,7 @@ const uuidPipe = new ParseUUIDPipe({
   exceptionFactory: () => new BadRequestException("Identificador inválido."),
 });
 
+/** Master-only auditing endpoints: reads only, no route changes any data. */
 @Controller("admin")
 @Roles("master")
 export class AdminController {

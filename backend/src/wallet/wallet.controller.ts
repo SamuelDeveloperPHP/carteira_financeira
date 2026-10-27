@@ -22,6 +22,11 @@ const uuidPipe = new ParseUUIDPipe({
   exceptionFactory: () => new BadRequestException("Identificador inválido."),
 });
 
+/**
+ * Wallet endpoints for ordinary users. The user id always comes from the
+ * session, never from the request, so nobody can act on another wallet.
+ * Money-moving routes require an Idempotency-Key header.
+ */
 @Controller()
 @Roles("user")
 export class WalletController {

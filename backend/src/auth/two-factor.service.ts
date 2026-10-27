@@ -1,6 +1,7 @@
 import {
   ForbiddenException,
   Injectable,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
 import { randomBytes } from "node:crypto";
@@ -10,6 +11,7 @@ import { Database, Queryable } from "../common/database/database.service";
 import { PARTIAL_SESSION_MINUTES } from "../common/constants";
 import { auditContext } from "../common/http/request-context";
 import { AppRequest, sessionOf } from "../common/http/request.types";
+import { logUnexpected } from "../common/logging/failure-log";
 import { RateLimiter } from "../common/rate-limit/rate-limiter.service";
 import {
   checkPassword,
@@ -27,6 +29,10 @@ import { RecoveryCodesRepository } from "./recovery-codes.repository";
 import { RotateDto } from "./dto/auth.dto";
 import { SessionsRepository } from "./sessions.repository";
 
+/**
+ * Second factor: TOTP enrolment and verification, single-use recovery codes and
+ * authenticator replacement.
+ */
 @Injectable()
 export class TwoFactorService {
   constructor(
@@ -39,6 +45,10 @@ export class TwoFactorService {
     private readonly limiter: RateLimiter
   ) {}
 
+  /**
+   * Shows the enrolment secret and QR code. The secret is generated once and
+   * stored encrypted, so reloading the page shows the same QR code.
+   */
   async setup(req: AppRequest) {
     const auth = sessionOf(req);
     const result = await this.db.transaction(async tx => {
@@ -62,11 +72,22 @@ export class TwoFactorService {
       );
       return { secret, uri: totp(secret, user.email).toString() };
     });
-    return { ...result, qr: await QRCode.toDataURL(result.uri) };
+    try {
+      return { ...result, qr: await QRCode.toDataURL(result.uri) };
+    } catch (error) {
+      // The secret is already stored; the user can retry and gets the same one.
+      logUnexpected("auth.qrcode.failed", req.correlationId, error);
+      throw new ServiceUnavailableException(
+        "Não foi possível gerar o QR code. Tente novamente."
+      );
+    }
   }
 
-  // Accepts a TOTP code (never the same time step twice) or, when allowed, a
-  // single-use recovery code.
+  /**
+   * Accepts a TOTP code (never the same time step twice) or, when allowed, a
+   * single-use recovery code. Runs inside the caller's transaction so consuming
+   * the code and finishing the login are atomic.
+   */
   async verifyCode(
     tx: Queryable,
     user: UserRow,
@@ -90,6 +111,10 @@ export class TwoFactorService {
     return "totp";
   }
 
+  /**
+   * Creates 8 recovery codes, replacing any earlier set. Only hashes are stored;
+   * the plain codes are returned once, for the user to keep.
+   */
   async issueRecoveryCodes(tx: Queryable, userId: string) {
     const codes = Array.from({ length: 8 }, () =>
       randomBytes(8).toString("hex")
@@ -98,8 +123,11 @@ export class TwoFactorService {
     return codes;
   }
 
-  // Changing the authenticator needs the password plus a valid second factor,
-  // revokes every session and leaves the account unusable until re-enrolled.
+  /**
+   * Changing the authenticator needs the password plus a valid second factor,
+   * revokes every session and pending reset link, and leaves the account
+   * unusable until re-enrolled.
+   */
   async rotate(dto: RotateDto, req: AppRequest) {
     const auth = sessionOf(req);
     await this.limiter.throttle(`rotate:${auth.user_id}`, 5);

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { ForbiddenException } from "@nestjs/common";
 import { createWorld, status } from "./helpers/memory.mjs";
 
 // Users are identified by their id; here the id doubles as the e-mail prefix.
@@ -128,7 +129,7 @@ test("só transferências podem ser devolvidas, não depósitos", async () => {
 
 test("depósito exige o provedor habilitado e é idempotente", async () => {
   const w = world();
-  const disabled = { name: "off", confirm: async () => { throw Object.assign(new Error("off"), { getStatus: () => 403 }); } };
+  const disabled = { name: "off", confirm: async () => { throw new ForbiddenException("off"); } };
   await rejectsWith(w.deposits(disabled).deposit("ana@example.test", 500, "referencia-deposito-1", w.ctx), 403);
   assert.equal(w.balance("ana"), 10000);
   const first = await w.deposits().deposit("ana@example.test", 500, "referencia-deposito-1", w.ctx);
@@ -150,4 +151,17 @@ test("depósitos simulados ficam desligados fora da demonstração", async () =>
     if (previous === undefined) delete process.env.DEMO_DEPOSITS;
     else process.env.DEMO_DEPOSITS = previous;
   }
+});
+
+test("queda inesperada do provedor vira 503 e nada é creditado", async () => {
+  const w = world();
+  const down = { name: "down", confirm: async () => { throw new Error("rede"); } };
+  const original = console.error;
+  console.error = () => {};
+  try {
+    await rejectsWith(w.deposits(down).deposit("ana@example.test", 500, "referencia-deposito-2", w.ctx), 503);
+  } finally {
+    console.error = original;
+  }
+  assert.equal(w.balance("ana"), 10000);
 });

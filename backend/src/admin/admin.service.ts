@@ -7,7 +7,10 @@ import { WalletService } from "../wallet/wallet.service";
 import { EventsQueryDto, UsersQueryDto } from "./dto/admin.dto";
 import { AdminRepository } from "./admin.repository";
 
-// Every read the master makes is itself written to the audit trail.
+/**
+ * Read-only queries for the master auditor. Every read the master makes is
+ * itself written to the audit trail, so nobody inspects accounts unobserved.
+ */
 @Injectable()
 export class AdminService {
   constructor(
@@ -71,6 +74,7 @@ export class AdminService {
     };
   }
 
+  /** Full trace of one movement: its record, ledger entries and related audit events. */
   async movement(id: string, actor: string, ctx: AuditContext) {
     const movement = await this.admin.findMovement(id);
     if (!movement) throw new NotFoundException("Movimentação não encontrada.");
@@ -82,6 +86,11 @@ export class AdminService {
     return { movement, entries, events };
   }
 
+  /**
+   * Operational indicators plus reconciliation: the sum of wallet balances must
+   * equal the sum of deposits (transfers only move money), and every wallet
+   * must match its last ledger entry. Any difference raises a critical alert.
+   */
   async metrics(actor: string, ctx: AuditContext) {
     await this.audit.record("admin.metrics.view", actor, null, ctx);
     const failures = await this.admin.failuresLast15Minutes();

@@ -21,9 +21,11 @@ export interface SessionRow {
   context: Partial<AuditContext>;
 }
 
+/** Server-side sessions keyed by the SHA-256 of the cookie token. */
 @Injectable()
 export class SessionsRepository {
   constructor(private readonly db: Database) {}
+  /** Expiry is computed by the database clock, not the application's. */
   async create(q: Queryable, s: NewSession) {
     await q.query(
       "INSERT INTO sessions(token_hash,user_id,stage,expires_at,context) VALUES($1,$2,$3,now()+($4*interval '1 minute'),$5)",
@@ -38,6 +40,7 @@ export class SessionsRepository {
       )
     ).rows[0];
   }
+  /** Locks the session row so two concurrent 2FA attempts cannot both finish the login. */
   async lockActive(
     q: Queryable,
     tokenHash: string
