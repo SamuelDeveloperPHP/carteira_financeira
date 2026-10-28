@@ -12,6 +12,7 @@ import { AccessGuard } from "./common/http/access.guard";
 import { ErrorsFilter } from "./common/http/errors.filter";
 import { RateLimitModule } from "./common/rate-limit/rate-limit.module";
 import { HealthModule } from "./health/health.module";
+import { InsightsModule } from "./insights/insights.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { UsersModule } from "./users/users.module";
 import { WalletModule } from "./wallet/wallet.module";
@@ -37,6 +38,7 @@ import { WalletModule } from "./wallet/wallet.module";
     BankingModule, // contas bancárias e chaves Pix
     SettingsModule, // preferências de segurança e reconhecimento facial
     AccessModule, // trilha de acesso (login/logout, duração, localização)
+    InsightsModule, // BI: indicadores, gráficos e sugestões do usuário
     AdminModule, // consultas do master (auditor)
     HealthModule, // /api/health para o monitoramento do Docker
   ],

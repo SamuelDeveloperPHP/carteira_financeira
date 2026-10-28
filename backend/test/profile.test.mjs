@@ -206,7 +206,7 @@ test("o cadastro facial exige senha e as cinco etapas, e guarda o vetor cifrado"
   await service.enroll("u1", { password: "senha-bem-comprida-1", descriptor: vector(), liveness: steps }, ctx);
   assert.equal(state.enabled, true);
   // Nada do vetor aparece em claro.
-  assert(!state.template.includes("0."));
+  assert.match(state.template, /^[0-9a-f]+\.[0-9a-f]{32}\.[0-9a-f]+$/);
 });
 
 test("a verificação aceita o mesmo rosto e recusa outro", async () => {

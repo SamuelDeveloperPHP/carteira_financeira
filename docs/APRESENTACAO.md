@@ -55,7 +55,7 @@ Além disso, **idempotência**: repetir a mesma requisição (clique duplo, falh
 | **Padrões e SOLID** | Repository; Unit of Work (`Database.transaction`); inversão de dependência (`MAIL_PROVIDER`, `DEPOSIT_PROVIDER`: trocar o provedor é mudar uma linha no módulo); responsabilidade única (razão, idempotência, transferência, depósito e 2FA são serviços separados); guard e filtro globais do Nest. |
 | **Modelagem de dados** | Abra `backend/migrations/001_initial.sql`: cada tabela e restrição está comentada. Destaque `movements` + `entries` (razão), `idempotency`, `audit_events` e os gatilhos de histórico imutável. |
 | **Docker** | `compose.yaml`: gateway Nginx, API, frontend, PostgreSQL; perfil `test` com banco isolado em memória. |
-| **Testes** | 93 testes: unitários de regra (repositórios em memória, sem banco) e integração contra PostgreSQL real (concorrência, rollback, autorização). |
+| **Testes** | 101 testes: unitários de regra (repositórios em memória, sem banco) e integração contra PostgreSQL real (concorrência, rollback, autorização). |
 | **Documentação** | README, `docs/API.md`, `ARQUITETURA.md`, `ENTREGA.md` e este roteiro; código comentado. |
 | **Monitoramento e logging** | Log estruturado com ID de correlação (`X-Request-Id`) ligado à auditoria; painel de métricas, conciliação e alertas; `/api/health`. |
 
@@ -116,6 +116,9 @@ Não, de propósito. A prova de vida (direita, esquerda, abaixar, levantar, sorr
 
 **Como a trilha de acesso mede a permanência?**
 Cada login completo grava um registro com IP, aparelho e localização. O encerramento é gravado no logout, na troca de senha/autenticador, ao passar de 5 sessões ou no vencimento; a duração é a diferença entre saída e entrada. Um gatilho no banco só deixa preencher o encerramento uma vez, então o histórico não é reescrito. A localização é declarada pelo navegador (não verificada) e é descartada se o usuário desligar a geolocalização.
+
+**De onde vêm as sugestões do painel de BI?**
+De regras determinísticas sobre o razão do próprio usuário (`insights.rules.ts`): saídas maiores que entradas, quantos dias o saldo cobre no ritmo atual, concentração das saídas em uma pessoa, saída muito acima da média e devoluções. As somas são feitas em SQL a partir de `entries` e a regra é uma função pura, testada sem banco. Não é IA nem aconselhamento financeiro; a página diz isso. Evoluções naturais: metas, categorias e alertas por e-mail.
 
 **Como trocaria o provedor de e-mail/pagamento?**
 Implementar a interface (`MailProvider` ou `DepositProvider`) e trocar o *binding* no módulo. Nenhuma regra de negócio muda.
