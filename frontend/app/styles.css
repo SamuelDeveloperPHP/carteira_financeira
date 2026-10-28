@@ -898,3 +898,77 @@ td.actions {
   background: #e0f1ea;
   color: #0f5a47;
 }
+
+/* Reconhecimento facial: tela de preparação, moldura oval e modal */
+.face-intro {
+  max-width: 360px;
+  margin: 0 auto;
+  text-align: center;
+}
+.face-intro h3 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 20px;
+}
+.face-oval {
+  width: 220px;
+  height: 290px;
+  margin: 0 auto 22px;
+  border-radius: 50%;
+  border: 5px solid var(--green);
+  background: #e9eef2;
+  overflow: hidden;
+  display: grid;
+  place-items: end center;
+}
+.face-silhouette {
+  width: 78%;
+  fill: #aebcc6;
+}
+.face-start {
+  width: 100%;
+  border-radius: 999px;
+  padding: 0.85rem 1.1rem;
+}
+.face-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  background: rgba(22, 42, 56, 0.6);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow-y: auto;
+}
+.face-modal {
+  background: #fff;
+  border-radius: 14px;
+  padding: 24px;
+  width: min(440px, 100%);
+  text-align: center;
+}
+.face-modal:focus {
+  outline: none;
+}
+.face-modal h3 {
+  color: var(--navy);
+  font-weight: 700;
+}
+.face-modal .face-capture {
+  margin: 0 auto;
+}
+.face-modal .face-video {
+  width: 220px;
+  aspect-ratio: auto;
+  height: 290px;
+  margin: 0 auto;
+  border-radius: 50%;
+  border: 5px solid var(--green);
+}
+.face-modal .face-steps {
+  justify-content: center;
+}
+.face-modal .inline-actions {
+  justify-content: center;
+}

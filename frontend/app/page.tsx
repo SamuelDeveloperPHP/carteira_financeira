@@ -16,7 +16,8 @@
 import { useEffect, useRef, useState, FormEvent, ReactNode } from "react";
 import { confirmAction, escapeHtml, notify } from "./alerts";
 import { api, ApiError } from "./api";
-import { FaceCapture, FaceResult } from "./profile/FaceCapture";
+import { FaceResult } from "./profile/FaceCapture";
+import { FaceFlow } from "./profile/FaceFlow";
 import { geoHintOff, setGeoHint } from "./profile/geo-hint";
 import { ProfileView } from "./profile/ProfileView";
 
@@ -968,7 +969,7 @@ export default function Home() {
                           abaixe e levante a cabeça e sorria.
                         </p>
                         {faceOpen ? (
-                          <FaceCapture
+                          <FaceFlow
                             onDone={r => {
                               setFaceResult(r);
                               setFaceOpen(false);
