@@ -11,6 +11,8 @@
   font-display: swap;
 }
 :root {
+  --demo-h: 43px;
+  --appbar-h: 72px;
   --ink: #243746;
   --navy: #162a38;
   --green: #176b57;
@@ -104,7 +106,14 @@ a {
   margin-bottom: 1.1rem;
 }
 .demo {
-  padding: 10px 20px;
+  position: sticky;
+  top: 0;
+  z-index: 1040;
+  height: var(--demo-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
   background: #fff4dc;
   border-bottom: 1px solid #ebd5a6;
   color: #684b14;
@@ -206,12 +215,58 @@ a {
 .shell {
   display: grid;
   grid-template-columns: 230px 1fr;
-  min-height: calc(100vh - 43px);
+  min-height: calc(100vh - var(--demo-h) - var(--appbar-h));
 }
-.sidebar {
+/* Navbar fixa no topo: logo, título da página, usuário, sino e Sair. Fica sempre
+   visível (sticky logo abaixo do aviso de demonstração) e separada do menu e do conteúdo. */
+.appbar {
+  position: sticky;
+  top: var(--demo-h);
+  z-index: 1030;
+  height: var(--appbar-h);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 2px 8px rgba(22, 42, 56, 0.1);
+  padding-right: clamp(16px, 4vw, 64px);
+}
+.appbar-brand {
+  flex: none;
+  width: 230px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 22px;
   background: var(--navy);
   color: #fff;
-  padding: 28px 22px;
+}
+.appbar-title {
+  flex: 1;
+  min-width: 0;
+  padding-left: clamp(8px, 2vw, 40px);
+}
+.appbar-title h1 {
+  margin: 0;
+  font-size: 1.4rem;
+  letter-spacing: -0.02em;
+}
+.appbar-title p {
+  margin: 0;
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar {
+  position: sticky;
+  top: calc(var(--demo-h) + var(--appbar-h));
+  height: calc(100vh - var(--demo-h) - var(--appbar-h));
+  overflow-y: auto;
+  background: var(--navy);
+  color: #fff;
+  padding: 24px 22px;
   display: flex;
   flex-direction: column;
   gap: 34px;
@@ -323,20 +378,6 @@ a {
   max-width: 1600px;
   width: 100%;
   margin: auto;
-}
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 32px;
-}
-.topbar p {
-  margin: 0;
-  font-size: 0.9rem;
-}
-.topbar h1 {
-  margin: 0 0 6px;
 }
 .panel {
   background: #fff;
@@ -601,12 +642,39 @@ a {
   .shell {
     display: block;
   }
-  .sidebar {
-    padding: 16px 20px;
-    gap: 16px;
+  /* Em telas estreitas o aviso rola com a página e a navbar gruda no topo. */
+  .demo {
+    position: static;
+    height: auto;
+    min-height: 0;
+    padding: 8px 12px;
   }
-  .sidebar .brand {
-    font-size: 1rem;
+  .appbar {
+    top: 0;
+    height: 64px;
+    gap: 8px;
+  }
+  .appbar-brand {
+    width: auto;
+    padding: 0 12px;
+  }
+  .appbar-brand .brand span:last-child {
+    display: none;
+  }
+  .appbar-title h1 {
+    font-size: 1.1rem;
+  }
+  .appbar-title p {
+    display: none;
+  }
+  .shell {
+    min-height: 0;
+  }
+  .sidebar {
+    position: static;
+    height: auto;
+    padding: 12px 16px;
+    gap: 12px;
   }
   .sidebar nav {
     flex-direction: row;
@@ -624,12 +692,6 @@ a {
   .main {
     padding: 24px 16px;
   }
-  .topbar {
-    align-items: start;
-  }
-  .topbar h1 {
-    font-size: 1.6rem;
-  }
   .panel {
     padding: 20px 16px;
   }
@@ -644,7 +706,6 @@ a {
   }
   .demo {
     font-size: 0.78rem;
-    padding: 8px 12px;
   }
   .section-head {
     align-items: start;
