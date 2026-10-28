@@ -169,6 +169,31 @@ export class BankingRepository {
     );
   }
 
+  /**
+   * Troca o valor da chave e reinicia o registro (nova decisão do diretório,
+   * novo código de posse se for o caso). O tipo e a conta não mudam.
+   */
+  async updateKey(
+    q: Queryable,
+    id: string,
+    k: {
+      value: string;
+      status: string;
+      protocol: string;
+      reason: string | null;
+      proofHash: string | null;
+      proofMinutes: number | null;
+    }
+  ) {
+    await q.query(
+      `UPDATE pix_keys SET key_value=$2,status=$3,protocol=$4,reason=$5,proof_hash=$6,
+         proof_expires_at=CASE WHEN $7::int IS NULL THEN NULL ELSE now()+($7::int*interval '1 minute') END,
+         proof_attempts=0,approved_at=CASE WHEN $3='approved' THEN now() END
+       WHERE id=$1`,
+      [id, k.value, k.status, k.protocol, k.reason, k.proofHash, k.proofMinutes]
+    );
+  }
+
   async deleteKey(q: Queryable, userId: string, id: string): Promise<boolean> {
     return (
       ((await q.query("DELETE FROM pix_keys WHERE id=$1 AND user_id=$2", [id, userId])).rowCount ?? 0) > 0

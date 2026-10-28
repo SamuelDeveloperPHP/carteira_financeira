@@ -33,6 +33,13 @@ export class CreatePixKeyDto {
   value?: string;
 }
 
+/** Edição de chave: só o valor muda (o tipo e a conta são fixos). */
+export class UpdatePixKeyDto {
+  @IsString({ message: "Chave inválida." })
+  @MaxLength(80, { message: "Chave inválida." })
+  value!: string;
+}
+
 /** Código de posse de 6 dígitos enviado ao e-mail ou telefone da chave. */
 export class ConfirmPixKeyDto {
   @Transform(trimmed)

@@ -941,6 +941,22 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
         // Isolamento: o outro usuário não vê nada disso nem remove.
         assert.equal((await call("/banking/accounts", "GET", undefined, other.cookie)).data.items.length, 0);
         assert.equal((await call(`/banking/accounts/${created.data.id}`, "DELETE", undefined, other.cookie)).status, 404);
+        // Editar a chave de e-mail: volta a pendente e exige novo código; o antigo valor fica livre.
+        const oldMail = `pix-${suffix}@example.test`, newMail = `pix2-${suffix}@example.test`;
+        const edit = body => call(`/banking/pix-keys/${mailKey.data.id}`, "PATCH", body, d.cookie);
+        assert.equal((await edit({ value: oldMail })).status, 422);
+        assert.equal((await edit({ value: "invalido" })).status, 400);
+        assert.equal((await edit({ value: newMail, tipo: "cpf" })).status, 400);
+        assert.equal((await call(`/banking/pix-keys/${mailKey.data.id}`, "PATCH", { value: newMail }, other.cookie)).status, 404);
+        const edited = await edit({ value: newMail });
+        assert.equal(edited.status, 200);
+        assert.equal(edited.data.status, "pending");
+        assert.equal(codes.length, 2);
+        assert.equal((await call(`/banking/pix-keys/${mailKey.data.id}/confirm`, "POST", { code: codes[1] }, d.cookie)).status, 201);
+        // A chave aleatória não se edita.
+        const evpKey = await call(keysPath, "POST", { type: "evp" }, d.cookie);
+        assert.equal((await call(`/banking/pix-keys/${evpKey.data.id}`, "PATCH", { value: "x" }, d.cookie)).status, 422);
+        assert.equal((await call(`/banking/pix-keys/${evpKey.data.id}`, "DELETE", undefined, d.cookie)).status, 200);
         // Remover uma chave libera o valor para ser registrado de novo.
         assert.equal((await call(`/banking/pix-keys/${cpfKey.data.id}`, "DELETE", undefined, d.cookie)).status, 200);
         assert.equal((await call(keysPath, "POST", { type: "cpf", value: cpf }, d.cookie)).status, 201);

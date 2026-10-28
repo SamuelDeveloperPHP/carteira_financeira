@@ -68,6 +68,13 @@ function banking() {
     approveKey: async (_q, id) => { Object.assign(state.keys.find(k => k.id === id), { status: "approved", proof_hash: null }); },
     addProofAttempt: async id => { state.keys.find(k => k.id === id).proof_attempts++; },
     renewProof: async (_q, id, hash) => { Object.assign(state.keys.find(k => k.id === id), { proof_hash: hash, proof_attempts: 0 }); },
+    updateKey: async (_q, id, k) => {
+      if (state.keys.some(x => x.key_value === k.value && x.id !== id)) throw Object.assign(new Error("dup"), { code: "23505" });
+      Object.assign(state.keys.find(x => x.id === id), {
+        key_value: k.value, status: k.status, protocol: k.protocol, proof_hash: k.proofHash, proof_attempts: 0,
+        proof_expires_at: k.proofMinutes ? new Date(Date.now() + 60000) : null,
+      });
+    },
     deleteKey: async (_q, u, id) => {
       const i = state.keys.findIndex(k => k.id === id && k.user_id === u);
       if (i >= 0) state.keys.splice(i, 1);
@@ -221,4 +228,32 @@ test("desativar apaga o modelo e exige a senha", async () => {
   await service.disable("u1", { password: "senha-bem-comprida-1" }, ctx);
   assert.equal(state.template, undefined);
   assert.equal(state.enabled, false);
+});
+
+test("editar a chave reinicia o registro: e-mail volta a exigir o código", async () => {
+  const { service, state } = banking();
+  const { id } = await service.addKey("u1", "acc1", { type: "email", value: "velho@example.test" }, ctx);
+  await service.confirmKey("u1", id, { code: state.codes[0] }, ctx);
+  assert.equal(state.keys[0].status, "approved");
+  const r = await service.updateKey("u1", id, { value: "Novo@Example.test" }, ctx);
+  assert.equal(r.status, "pending");
+  assert.equal(state.keys[0].key_value, "novo@example.test");
+  assert.equal(state.codes.length, 2);
+  await service.confirmKey("u1", id, { code: state.codes[1] }, ctx);
+  assert.equal(state.keys[0].status, "approved");
+});
+
+test("editar: valor repetido, igual ao atual, chave aleatória e dono errado são recusados", async () => {
+  const { service, state } = banking();
+  const a = await service.addKey("u1", "acc1", { type: "email", value: "a@example.test" }, ctx);
+  await service.addKey("u1", "acc1", { type: "email", value: "b@example.test" }, ctx);
+  const evp = await service.addKey("u1", "acc1", { type: "evp" }, ctx);
+  await assert.rejects(service.updateKey("u1", a.id, { value: "b@example.test" }, ctx), status(409));
+  await assert.rejects(service.updateKey("u1", a.id, { value: "a@example.test" }, ctx), status(422));
+  await assert.rejects(service.updateKey("u1", evp.id, { value: "x" }, ctx), status(422));
+  await assert.rejects(service.updateKey("intruso", a.id, { value: "c@example.test" }, ctx), status(404));
+  // CPF editado precisa continuar sendo o do titular.
+  const cpf = await service.addKey("u1", "acc1", { type: "cpf", value: "52998224725" }, ctx);
+  await assert.rejects(service.updateKey("u1", cpf.id, { value: "111.444.777-35" }, ctx), status(400));
+  assert.equal(state.keys.find(k => k.id === a.id).key_value, "a@example.test");
 });
