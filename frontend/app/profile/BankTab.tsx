@@ -12,6 +12,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { api } from "../api";
 import { askInput, confirmAction, escapeHtml, notify } from "../alerts";
 import { dateTime } from "./format";
+import { KEY_MAX_LENGTH, maskDocument, maskPixKey } from "./masks";
 import { useWork } from "./useWork";
 
 type PixKey = {
@@ -51,31 +52,24 @@ const STATUS = {
   rejected: ["Recusada", "bad"],
 } as const;
 const PLACEHOLDER: Record<PixKey["type"], string> = {
-  cpf: "Documento do titular",
-  cnpj: "Documento do titular",
+  cpf: "000.000.000-00",
+  cnpj: "00.000.000/0000-00",
   email: "voce@exemplo.com",
   phone: "(61) 99999-9999",
   evp: "",
 };
 
-/** Formata CPF/CNPJ só com dígitos para exibição. */
-function maskDocument(d: string) {
-  return d.length === 11
-    ? d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")
-    : d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
-}
 /** Exibe a chave de forma legível (CPF/CNPJ/celular formatados). */
 function showKey(k: PixKey) {
-  if (k.type === "cpf" || k.type === "cnpj") return maskDocument(k.value);
   if (k.type === "phone") return k.value.replace(/^\+55(\d{2})(\d{5})(\d{4})$/, "+55 ($1) $2-$3");
-  return k.value;
+  return maskPixKey(k.type, k.value);
 }
 
 /** Chave sugerida ao abrir o formulário: o documento do titular (CPF ou CNPJ). */
 function defaultKey(a: BankAccount): { type: PixKey["type"]; value: string } {
   return a.holderDocument.length === 14
-    ? { type: "cnpj", value: a.holderDocument }
-    : { type: "cpf", value: a.holderDocument };
+    ? { type: "cnpj", value: maskDocument(a.holderDocument) }
+    : { type: "cpf", value: maskDocument(a.holderDocument) };
 }
 
 export function BankTab({ fail }: { fail: (e: unknown) => void }) {
@@ -84,6 +78,8 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [form, setForm] = useState({ bankCode: "", agency: "", accountNumber: "", accountType: "checking", holderDocument: "" });
+  // Chave em edição (uma por vez): o valor digitado leva a máscara do tipo.
+  const [editing, setEditing] = useState<{ id: string; value: string } | null>(null);
   const [keyForm, setKeyForm] = useState<Record<string, { type: PixKey["type"]; value: string }>>({});
 
   async function load() {
@@ -113,9 +109,9 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
   function removeAccount(a: BankAccount) {
     run(async () => {
       const ok = await confirmAction({
-        title: "Remover conta bancária?",
+        title: "Excluir conta bancária?",
         html: `${escapeHtml(a.bankName)} · ag. ${escapeHtml(a.agency)} · conta ${escapeHtml(a.accountNumber)}<br/>As chaves Pix desta conta também serão removidas.`,
-        confirmText: "Remover",
+        confirmText: "Excluir",
       });
       if (!ok) return;
       const r = await api<{ message: string }>(`/banking/accounts/${a.id}`, "DELETE");
@@ -164,12 +160,24 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
     });
   }
 
+  /** Salva a edição. E-mail/celular alterados voltam a exigir o código de posse. */
+  function saveEdit(k: PixKey) {
+    if (!editing) return;
+    run(async () => {
+      const r = await api<{ status: string; message: string }>(`/banking/pix-keys/${k.id}`, "PATCH", { value: editing.value });
+      setEditing(null);
+      if (r.status === "pending") await confirmWithCode(k.id, r.message).catch(fail);
+      else notify(r.status === "approved" ? "success" : "warning", r.message);
+      await load();
+    });
+  }
+
   function removeKey(k: PixKey) {
     run(async () => {
       const ok = await confirmAction({
-        title: "Remover chave Pix?",
+        title: "Excluir chave Pix?",
         html: `${KEY_TYPES[k.type]}: <strong>${escapeHtml(showKey(k))}</strong>`,
-        confirmText: "Remover",
+        confirmText: "Excluir",
       });
       if (!ok) return;
       const r = await api<{ message: string }>(`/banking/pix-keys/${k.id}`, "DELETE");
@@ -218,7 +226,7 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
           </label>
           <label className="field">
             <span className="form-label d-block">CPF/CNPJ do titular</span>
-            <input className="form-control" required maxLength={18} inputMode="numeric" value={form.holderDocument} onChange={e => setForm({ ...form, holderDocument: e.target.value })} />
+            <input className="form-control" required maxLength={18} inputMode="numeric" placeholder="000.000.000-00 ou 00.000.000/0000-00" value={form.holderDocument} onChange={e => setForm({ ...form, holderDocument: maskDocument(e.target.value) })} />
           </label>
           <button className="btn btn-primary" disabled={busy}>
             Cadastrar conta
@@ -248,12 +256,12 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
                 </p>
               </div>
               <button className="btn btn-sm btn-outline-secondary" disabled={busy} onClick={() => removeAccount(a)}>
-                Remover conta
+                Excluir conta
               </button>
             </div>
 
             <h3>
-              Chaves Pix{" "}
+              Chaves Pix vinculadas a este banco{" "}
               <small className="muted">
                 ({a.keys.length}/{a.maxKeys})
               </small>
@@ -277,7 +285,26 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
                     {a.keys.map(k => (
                       <tr key={k.id}>
                         <td>{KEY_TYPES[k.type]}</td>
-                        <td className="break">{showKey(k)}</td>
+                        <td className="break">
+                          {editing?.id === k.id ? (
+                            <input
+                              className="form-control"
+                              autoFocus
+                              aria-label={`Novo valor da chave ${KEY_TYPES[k.type]}`}
+                              type={k.type === "email" ? "email" : "text"}
+                              inputMode={k.type === "email" ? "email" : "numeric"}
+                              maxLength={KEY_MAX_LENGTH[k.type]}
+                              value={editing.value}
+                              onChange={e => setEditing({ id: k.id, value: maskPixKey(k.type, e.target.value) })}
+                              onKeyDown={e => {
+                                if (e.key === "Enter") saveEdit(k);
+                                if (e.key === "Escape") setEditing(null);
+                              }}
+                            />
+                          ) : (
+                            showKey(k)
+                          )}
+                        </td>
                         <td>
                           <span className={`status ${STATUS[k.status][1]}`}>{STATUS[k.status][0]}</span>
                           {k.reason && <div className="muted small">{k.reason}</div>}
@@ -285,6 +312,17 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
                         <td>{k.protocol}</td>
                         <td>{dateTime(k.createdAt)}</td>
                         <td className="actions">
+                          {editing?.id === k.id ? (
+                            <>
+                              <button className="btn btn-sm btn-primary" disabled={busy || !editing.value} onClick={() => saveEdit(k)}>
+                                Salvar
+                              </button>{" "}
+                              <button className="btn btn-sm btn-outline-secondary" disabled={busy} onClick={() => setEditing(null)}>
+                                Cancelar
+                              </button>
+                            </>
+                          ) : (
+                          <>
                           {k.status === "pending" && (
                             <>
                               <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => run(async () => { if (await confirmWithCode(k.id, "Informe o código enviado ao contato da chave.")) await load(); })}>
@@ -295,9 +333,22 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
                               </button>{" "}
                             </>
                           )}
+                          {k.type !== "evp" && (
+                            <>
+                              <button
+                                className="btn btn-sm btn-outline-secondary"
+                                disabled={busy}
+                                onClick={() => setEditing({ id: k.id, value: showKey(k).replace(/^\+55 /, "") })}
+                              >
+                                Editar
+                              </button>{" "}
+                            </>
+                          )}
                           <button className="btn btn-sm btn-outline-secondary" disabled={busy} onClick={() => removeKey(k)}>
-                            Remover
+                            Excluir
                           </button>
+                          </>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -315,7 +366,7 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
                   onChange={e => {
                     const type = e.target.value as PixKey["type"];
                     // CPF/CNPJ já vêm com o documento do titular (a chave tem de ser ele).
-                    const value = type === "cpf" && a.holderDocument.length === 11 ? a.holderDocument : type === "cnpj" && a.holderDocument.length === 14 ? a.holderDocument : "";
+                    const value = type === "cpf" && a.holderDocument.length === 11 ? maskDocument(a.holderDocument) : type === "cnpj" && a.holderDocument.length === 14 ? maskDocument(a.holderDocument) : "";
                     setKeyForm({ ...keyForm, [a.id]: { type, value } });
                   }}
                 >
@@ -329,7 +380,16 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
               {f.type !== "evp" ? (
                 <label className="field">
                   <span className="form-label d-block">Chave</span>
-                  <input className="form-control" required placeholder={PLACEHOLDER[f.type]} maxLength={77} value={f.value} onChange={e => setKeyForm({ ...keyForm, [a.id]: { ...f, value: e.target.value } })} />
+                  <input
+                    className="form-control"
+                    required
+                    type={f.type === "email" ? "email" : "text"}
+                    inputMode={f.type === "email" ? "email" : "numeric"}
+                    placeholder={PLACEHOLDER[f.type]}
+                    maxLength={KEY_MAX_LENGTH[f.type]}
+                    value={f.value}
+                    onChange={e => setKeyForm({ ...keyForm, [a.id]: { ...f, value: maskPixKey(f.type, e.target.value) } })}
+                  />
                 </label>
               ) : (
                 <p className="muted pix-note">A chave aleatória é gerada pelo sistema.</p>

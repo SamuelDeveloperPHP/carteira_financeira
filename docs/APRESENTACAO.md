@@ -55,7 +55,7 @@ Além disso, **idempotência**: repetir a mesma requisição (clique duplo, falh
 | **Padrões e SOLID** | Repository; Unit of Work (`Database.transaction`); inversão de dependência (`MAIL_PROVIDER`, `DEPOSIT_PROVIDER`: trocar o provedor é mudar uma linha no módulo); responsabilidade única (razão, idempotência, transferência, depósito e 2FA são serviços separados); guard e filtro globais do Nest. |
 | **Modelagem de dados** | Abra `backend/migrations/001_initial.sql`: cada tabela e restrição está comentada. Destaque `movements` + `entries` (razão), `idempotency`, `audit_events` e os gatilhos de histórico imutável. |
 | **Docker** | `compose.yaml`: gateway Nginx, API, frontend, PostgreSQL; perfil `test` com banco isolado em memória. |
-| **Testes** | 91 testes: unitários de regra (repositórios em memória, sem banco) e integração contra PostgreSQL real (concorrência, rollback, autorização). |
+| **Testes** | 93 testes: unitários de regra (repositórios em memória, sem banco) e integração contra PostgreSQL real (concorrência, rollback, autorização). |
 | **Documentação** | README, `docs/API.md`, `ARQUITETURA.md`, `ENTREGA.md` e este roteiro; código comentado. |
 | **Monitoramento e logging** | Log estruturado com ID de correlação (`X-Request-Id`) ligado à auditoria; painel de métricas, conciliação e alertas; `/api/health`. |
 

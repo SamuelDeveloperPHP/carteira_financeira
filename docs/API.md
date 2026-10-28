@@ -33,7 +33,8 @@ POST exige `Origin: http://localhost:3080`, `Content-Type: application/json` e `
 | POST `/banking/accounts/:id/pix-keys` | `type` (`cpf`, `cnpj`, `email`, `phone`, `evp`), `value` (omitido em `evp`) | Usuário; status `approved` ou `pending` (e-mail/celular aguardam código); 409 se a chave já existir |
 | POST `/banking/pix-keys/:id/confirm` | `code` (6 dígitos) | Usuário; conclui a prova de posse (5 tentativas, 10 minutos) |
 | POST `/banking/pix-keys/:id/resend` | `{}` | Usuário; novo código |
-| DELETE `/banking/pix-keys/:id` | — | Usuário; libera a chave |
+| PATCH `/banking/pix-keys/:id` | `value` | Usuário; edita CPF, CNPJ, e-mail ou celular (mesmas regras do cadastro); e-mail/celular voltam a `pending` com novo código; chave aleatória: 422; valor igual ao atual: 422; repetido: 409 |
+| DELETE `/banking/pix-keys/:id` | — | Usuário; exclui a chave e libera o valor |
 | GET `/settings` | — | Usuário; `biometricEnabled`, `geolocationEnabled`, `faceEnabled` |
 | PATCH `/settings` | `biometricEnabled`, `geolocationEnabled` (opcionais) | Usuário |
 | POST `/settings/face` | `password`, `descriptor` (128 números), `liveness` (`right`, `left`, `down`, `up`, `smile`) | Usuário; cadastra o rosto (substitui o anterior) |

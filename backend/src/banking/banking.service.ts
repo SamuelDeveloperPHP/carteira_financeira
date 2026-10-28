@@ -29,6 +29,7 @@ import {
   ConfirmPixKeyDto,
   CreateBankAccountDto,
   CreatePixKeyDto,
+  UpdatePixKeyDto,
 } from "./dto/banking.dto";
 import { PIX_DIRECTORY, PixDirectoryProvider } from "./pix-directory.provider";
 import {
@@ -226,6 +227,75 @@ export class BankingService {
     });
     await this.deliver(key.key_type, key.key_value, code, ctx);
     return { message: "Enviamos um novo código." };
+  }
+
+  /**
+   * Edita o valor de uma chave (CPF, CNPJ, e-mail ou celular). Passa pelas MESMAS
+   * regras do cadastro e reinicia o registro: e-mail e celular voltam a exigir
+   * o código de posse. A chave aleatória não se edita (o valor é gerado pelo
+   * sistema): remova e crie outra. A chave continua na mesma conta.
+   */
+  async updateKey(userId: string, keyId: string, dto: UpdatePixKeyDto, ctx: AuditContext) {
+    await this.limiter.throttle(`pix-write:${userId}`, 20);
+    const current = await this.db.transaction(async tx => this.repo.lockKey(tx, userId, keyId));
+    if (!current) throw new NotFoundException("Chave não encontrada.");
+    if (current.key_type === "evp")
+      throw new UnprocessableEntityException(
+        "A chave aleatória não pode ser editada. Remova-a e crie outra."
+      );
+    const account = await this.repo.findAccount(userId, current.bank_account_id);
+    if (!account) throw new NotFoundException("Conta não encontrada.");
+    const value = normalizePixKey(current.key_type, dto.value, account.holder_document);
+    if (value === current.key_value)
+      throw new UnprocessableEntityException("Informe um valor diferente do atual.");
+    if (await this.repo.keyExists(value)) throw this.duplicate();
+
+    let decision;
+    try {
+      decision = await this.directory.submit({
+        type: current.key_type,
+        value,
+        holderDocument: account.holder_document,
+        bankCode: account.bank_code,
+        agency: account.agency,
+        accountNumber: account.account_number,
+      });
+    } catch (e) {
+      logUnexpected("pix.directory.failed", ctx.correlationId, e);
+      throw new ServiceUnavailableException("Diretório do Pix indisponível. Tente novamente em instantes.");
+    }
+    const code = decision.status === "awaiting_ownership" ? this.newCode() : null;
+    const status = decision.status === "awaiting_ownership" ? "pending" : decision.status;
+    try {
+      await this.db.transaction(async tx => {
+        // Relê com bloqueio: se a chave foi removida ou trocada no meio do caminho, recusa.
+        const locked = await this.repo.lockKey(tx, userId, keyId);
+        if (!locked || locked.key_value !== current.key_value)
+          throw new ConflictException("A chave foi alterada. Atualize a página e tente de novo.");
+        await this.repo.updateKey(tx, keyId, {
+          value,
+          status,
+          protocol: decision.protocol,
+          reason: decision.status === "rejected" ? decision.reason : null,
+          proofHash: code ? digest(code) : null,
+          proofMinutes: code ? PIX_PROOF_MINUTES : null,
+        });
+        await this.audit.record("pix.key.updated", userId, keyId, ctx, { type: current.key_type, status }, "success", null, tx);
+      });
+    } catch (e: any) {
+      if (e.code === "23505") throw this.duplicate();
+      if (e instanceof HttpException) throw e;
+      throw this.unexpected("pix.key.update", ctx, e);
+    }
+    if (code) await this.deliver(current.key_type, value, code, ctx);
+    return {
+      id: keyId,
+      status,
+      message:
+        status === "pending"
+          ? "Chave alterada. Informe o código enviado ao novo contato para concluir."
+          : "Chave alterada e aprovada.",
+    };
   }
 
   async removeKey(userId: string, keyId: string, ctx: AuditContext) {

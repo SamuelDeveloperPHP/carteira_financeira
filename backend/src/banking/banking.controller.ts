@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   ParseUUIDPipe,
   Post,
   Req,
@@ -18,6 +19,7 @@ import {
   CreateBankAccountDto,
   CreatePixKeyDto,
   EmptyBodyDto,
+  UpdatePixKeyDto,
 } from "./dto/banking.dto";
 
 const uuidPipe = new ParseUUIDPipe({
@@ -78,6 +80,15 @@ export class BankingController {
     @Req() req: AppRequest
   ) {
     return this.banking.resendCode(sessionOf(req).user_id, id, auditContext(req));
+  }
+
+  @Patch("pix-keys/:id")
+  updateKey(
+    @Param("id", uuidPipe) id: string,
+    @Body() dto: UpdatePixKeyDto,
+    @Req() req: AppRequest
+  ) {
+    return this.banking.updateKey(sessionOf(req).user_id, id, dto, auditContext(req));
   }
 
   @Delete("pix-keys/:id")
