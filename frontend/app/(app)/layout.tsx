@@ -86,57 +86,61 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <Brand />
-        <nav aria-label="Navegação principal">
-          {nav.map(item => (
+    <>
+      {/* Navbar fixa no topo, separada do menu lateral e do conteúdo. */}
+      <header className="appbar">
+        <div className="appbar-brand">
+          <Brand />
+        </div>
+        <div className="appbar-title">
+          <h1>{title}</h1>
+          <p className="muted">
+            {user.name} · {user.email}
+          </p>
+        </div>
+        <div className="topbar-actions">
+          {/* Sino: só para cliente comum. O contador acende quando há aviso não lido. */}
+          {user.role === "user" && (
             <Link
-              key={item.href}
-              href={item.href}
-              className={inSection(pathname, item.href) ? "active" : ""}
-              aria-current={inSection(pathname, item.href) ? "page" : undefined}
+              href="/notificacoes"
+              className="bell"
+              aria-label={
+                unread > 0
+                  ? `Notificações: ${unread} não lida${unread > 1 ? "s" : ""}`
+                  : "Notificações: nenhuma nova"
+              }
             >
-              {item.title}
-              {item.badge && unread > 0 && <span className="nav-badge">{unread}</span>}
+              <BellIcon />
+              {unread > 0 && <span className="bell-badge">{unread > 99 ? "99+" : unread}</span>}
             </Link>
-          ))}
-        </nav>
-        <footer>
-          {user.role === "master" ? "Perfil master · Somente leitura" : "Conta pessoal"}
-          <br />
-          Sessão protegida por 2FA
-        </footer>
-      </aside>
-      <main className="main">
-        <header className="topbar">
-          <div>
-            <h1>{title}</h1>
-            <p className="muted">
-              {user.name} · {user.email}
-            </p>
-          </div>
-          <div className="topbar-actions">
-            {/* Sino: só para cliente comum. O contador acende quando há aviso não lido. */}
-            {user.role === "user" && (
+          )}
+          <button className="btn btn-outline-secondary" disabled={busy} onClick={logout}>
+            Sair
+          </button>
+        </div>
+      </header>
+      <div className="shell">
+        <aside className="sidebar">
+          <nav aria-label="Navegação principal">
+            {nav.map(item => (
               <Link
-                href="/notificacoes"
-                className="bell"
-                aria-label={
-                  unread > 0
-                    ? `Notificações: ${unread} não lida${unread > 1 ? "s" : ""}`
-                    : "Notificações: nenhuma nova"
-                }
+                key={item.href}
+                href={item.href}
+                className={inSection(pathname, item.href) ? "active" : ""}
+                aria-current={inSection(pathname, item.href) ? "page" : undefined}
               >
-                <BellIcon />
-                {unread > 0 && <span className="bell-badge">{unread > 99 ? "99+" : unread}</span>}
+                {item.title}
+                {item.badge && unread > 0 && <span className="nav-badge">{unread}</span>}
               </Link>
-            )}
-            <button className="btn btn-outline-secondary" disabled={busy} onClick={logout}>
-              Sair
-            </button>
-          </div>
-        </header>
+            ))}
+          </nav>
+          <footer>
+            {user.role === "master" ? "Perfil master · Somente leitura" : "Conta pessoal"}
+            <br />
+            Sessão protegida por 2FA
+          </footer>
+        </aside>
+        <main className="main">
         {codes.length > 0 && (
           <section className="panel">
             <h2>Guarde seus códigos de recuperação</h2>
@@ -160,7 +164,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </section>
         )}
         {children}
-      </main>
-    </div>
+        </main>
+      </div>
+    </>
   );
 }
