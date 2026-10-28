@@ -12,7 +12,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { askInput, confirmAction, notify } from "../alerts";
-import { FaceCapture, FaceResult } from "./FaceCapture";
+import { FaceResult } from "./FaceCapture";
+import { FaceFlow } from "./FaceFlow";
 import { setGeoHint } from "./geo-hint";
 import { useWork } from "./useWork";
 
@@ -164,7 +165,7 @@ export function SecurityTab({ fail }: { fail: (e: unknown) => void }) {
         </div>
 
         {capturing ? (
-          <FaceCapture onDone={enroll} onCancel={() => setCapturing(false)} />
+          <FaceFlow onDone={enroll} onCancel={() => setCapturing(false)} />
         ) : settings.faceEnabled ? (
           <div className="inline-actions">
             <button className="btn btn-outline-secondary" disabled={busy} onClick={startFace}>
