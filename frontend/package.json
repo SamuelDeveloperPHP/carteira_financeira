@@ -6,16 +6,21 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prebuild": "node scripts/vendor.mjs",
+    "predev": "node scripts/vendor.mjs"
   },
   "dependencies": {
+    "@vladmandic/face-api": "^1.7.15",
     "bootstrap": "5.3.8",
+    "leaflet": "^1.9.4",
     "next": "16.4.3",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "sweetalert2": "11.26.3"
   },
   "devDependencies": {
+    "@types/leaflet": "^1.9.22",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

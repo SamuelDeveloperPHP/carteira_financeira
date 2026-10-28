@@ -66,3 +66,30 @@ export function escapeHtml(value: string) {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!
   );
 }
+
+// Pede um texto ao usuário (senha ou código) num diálogo. Devolve o que foi
+// digitado, ou null se cancelar. Nada é guardado: o valor só segue para a API.
+// `password` oculta a digitação; a mensagem explica por que o dado é pedido.
+export async function askInput(options: {
+  title: string;
+  text: string;
+  label: string;
+  password?: boolean;
+  confirmText?: string;
+}): Promise<string | null> {
+  const result = await Swal.fire({
+    icon: "question",
+    title: options.title,
+    text: options.text,
+    input: options.password ? "password" : "text",
+    inputLabel: options.label,
+    inputAttributes: { autocomplete: options.password ? "current-password" : "one-time-code", maxlength: "128" },
+    showCancelButton: true,
+    confirmButtonText: options.confirmText ?? "Confirmar",
+    cancelButtonText: "Cancelar",
+    confirmButtonColor: colors.confirm,
+    cancelButtonColor: colors.cancel,
+    inputValidator: (v: string) => (v ? undefined : "Preencha este campo."),
+  });
+  return result.isConfirmed ? String(result.value) : null;
+}

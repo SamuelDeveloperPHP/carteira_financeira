@@ -15,6 +15,10 @@
  */
 import { useEffect, useRef, useState, FormEvent, ReactNode } from "react";
 import { confirmAction, escapeHtml, notify } from "./alerts";
+import { api, ApiError } from "./api";
+import { FaceCapture, FaceResult } from "./profile/FaceCapture";
+import { geoHintOff, setGeoHint } from "./profile/geo-hint";
+import { ProfileView } from "./profile/ProfileView";
 
 // ---------------------------------------------------------------------------
 // 1. Tipos (espelham as respostas da API)
@@ -138,54 +142,14 @@ const labels: Record<string, string> = {
   failure: "Falha",
   unavailable: "Indisponível",
   timeout: "Tempo esgotado",
+  disabled: "Desativada pelo usuário",
 };
-// Erro devolvido pela API, com o status HTTP. A mensagem já vem segura e em
-// português, pronta para ser mostrada ao usuário.
-class ApiError extends Error {
-  constructor(
-    message: string,
-    public status: number
-  ) {
-    super(message);
-  }
-}
-// ÚNICO ponto de saída para a API. Centralizar evita esquecer cabeçalhos.
-//  - credentials "same-origin": envia o cookie de sessão só para o próprio site;
-//  - cache "no-store": saldo e extrato nunca vêm de cache do navegador;
-//  - X-Wallet-Request: prova ao servidor que a chamada vem desta aplicação
-//    (defesa contra CSRF, junto com o cabeçalho Origin);
-//  - Idempotency-Key (opcional): usada nas operações que movem dinheiro, para
-//    que repetir o pedido não pague duas vezes.
-async function api<T = any>(
-  path: string,
-  method = "GET",
-  body?: unknown,
-  key?: string
-): Promise<T> {
-  const r = await fetch(`/api${path}`, {
-    method,
-    credentials: "same-origin",
-    cache: "no-store",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Wallet-Request": "1",
-      ...(key ? { "Idempotency-Key": key } : {}),
-    },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
-  // Se a resposta não for JSON (ex.: gateway fora do ar), usa mensagem genérica.
-  const data = await r
-    .json()
-    .catch(() => ({ message: "Serviço indisponível. Tente novamente." }));
-  if (!r.ok)
-    throw new ApiError(data.message || "Não foi possível concluir.", r.status);
-  return data;
-}
 // Pede a localização ao navegador no login, para a auditoria. É OPCIONAL: se o
 // usuário negar, o sistema registra "denied" e o login segue normalmente. O
 // timeout de 7 s evita travar a tela esperando o GPS.
 async function locate(): Promise<LocationData> {
-  if (!navigator.geolocation) return { status: "unavailable" };
+  // Quem desligou a geolocalização no perfil não é incomodado com o pedido.
+  if (!navigator.geolocation || geoHintOff()) return { status: "unavailable" };
   return new Promise(resolve =>
     navigator.geolocation.getCurrentPosition(
       p =>
@@ -201,7 +165,8 @@ async function locate(): Promise<LocationData> {
           status:
             e.code === 1 ? "denied" : e.code === 3 ? "timeout" : "unavailable",
         }),
-      { enableHighAccuracy: false, timeout: 7000, maximumAge: 60000 }
+      // Alta precisão (GPS/Wi-Fi) e posição fresca: base da trilha de acesso.
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     )
   );
 }
@@ -342,6 +307,11 @@ export default function Home() {
     ),
     [resetToken, setResetToken] = useState(""),
     [newPassword, setNewPassword] = useState("");
+  // Recuperação com reconhecimento facial: o servidor diz se o usuário o ativou;
+  // então a redefinição só segue depois da captura (prova de vida) do rosto.
+  const [faceNeeded, setFaceNeeded] = useState(false),
+    [faceOpen, setFaceOpen] = useState(false),
+    [faceResult, setFaceResult] = useState<FaceResult | null>(null);
   const [enrollment, setEnrollment] = useState<{
       qr: string;
       secret: string;
@@ -475,7 +445,13 @@ export default function Home() {
     setStage("full");
     setView(u.role === "master" ? "accounts" : "wallet");
     if (u.role === "master") setAccounts(await api("/admin/users"));
-    else await loadWallet();
+    else {
+      await loadWallet();
+      // Atualiza a dica local da geolocalização (ver profile/geo-hint.ts).
+      api<{ geolocationEnabled: boolean }>("/settings")
+        .then(s => setGeoHint(s.geolocationEnabled))
+        .catch(() => {});
+    }
   }
   // Ao abrir a página: (1) lê o link de recuperação de senha, se houver, e (2)
   // pergunta ao servidor em que ponto do login o cookie está. `active` impede
@@ -490,6 +466,13 @@ export default function Home() {
       history.replaceState(null, "", location.pathname + location.search);
       setResetToken(token);
       setRecovery("reset");
+      setFaceNeeded(false);
+      setFaceResult(null);
+      setFaceOpen(false);
+      // Pergunta se este usuário exigirá o rosto (não gasta o link).
+      api<{ faceRequired: boolean }>("/auth/reset-requirements", "POST", { token })
+        .then(r => setFaceNeeded(r.faceRequired))
+        .catch(() => {});
     };
     readToken();
     window.addEventListener("hashchange", readToken);
@@ -601,15 +584,27 @@ export default function Home() {
   async function resetPassword(e: FormEvent) {
     e.preventDefault();
     await work(async () => {
-      const r = await api<{ message: string }>(
-        "/auth/reset-password",
-        "POST",
-        { token: resetToken, password: newPassword }
-      );
-      setNewPassword("");
-      setResetToken("");
-      setRecovery("none");
-      notify("success", r.message);
+      try {
+        const r = await api<{ message: string }>(
+          "/auth/reset-password",
+          "POST",
+          {
+            token: resetToken,
+            password: newPassword,
+            ...(faceNeeded && faceResult ? { face: faceResult.descriptor } : {}),
+          }
+        );
+        setNewPassword("");
+        setResetToken("");
+        setRecovery("none");
+        notify("success", r.message);
+      } catch (e) {
+        // Rosto recusado: a captura vale uma tentativa; é preciso refazê-la.
+        setFaceResult(null);
+        throw e;
+      } finally {
+        setFaceResult(null);
+      }
     });
   }
   // Segundo fator: envia o código de 6 dígitos (ou de recuperação). Na primeira
@@ -964,7 +959,40 @@ export default function Home() {
                       />
                       <small>Use pelo menos 12 caracteres.</small>
                     </Field>
-                    <button disabled={busy} className="btn btn-primary w-100">
+                    {faceNeeded && (
+                      <div className="face-gate">
+                        <strong>Confirmação facial</strong>
+                        <p className="muted">
+                          Você ativou o reconhecimento facial. Além do link,
+                          confirme seu rosto: vire à direita e à esquerda,
+                          abaixe e levante a cabeça e sorria.
+                        </p>
+                        {faceOpen ? (
+                          <FaceCapture
+                            onDone={r => {
+                              setFaceResult(r);
+                              setFaceOpen(false);
+                            }}
+                            onCancel={() => setFaceOpen(false)}
+                          />
+                        ) : faceResult ? (
+                          <p className="status ok">Rosto verificado ✓</p>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn-outline-secondary"
+                            disabled={busy}
+                            onClick={() => setFaceOpen(true)}
+                          >
+                            Confirmar meu rosto
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    <button
+                      disabled={busy || (faceNeeded && !faceResult)}
+                      className="btn btn-primary w-100"
+                    >
                       {busy ? "Aguarde…" : "Redefinir senha"}
                     </button>
                   </form>
@@ -1144,6 +1172,7 @@ export default function Home() {
                 : [
                     ["wallet", "Minha carteira"],
                     ["notifications", "Notificações"],
+                    ["profile", "Meu perfil"],
                   ]
               )
                 .concat([
@@ -1184,6 +1213,7 @@ export default function Home() {
                         events: "Trilha de auditoria",
                         metrics: "Monitoramento",
                         notifications: "Notificações",
+                        profile: "Meu perfil",
                         security: "Segurança",
                         about: "Sobre a demonstração",
                       } as Record<string, string>
@@ -1720,6 +1750,10 @@ export default function Home() {
               </section>
             )}
             {/* Aba de segurança: troca do autenticador (pede senha + código, encerra todas as sessões e exige novo cadastro). */}
+            {/* Perfil: dados bancários e Pix, segurança (biometria, geolocalização, rosto) e trilha de acesso. */}
+            {view === "profile" && user.role === "user" && (
+              <ProfileView fail={error} />
+            )}
             {view === "security" && (
               <section className="panel">
                 <h2>Autenticação em dois fatores</h2>
