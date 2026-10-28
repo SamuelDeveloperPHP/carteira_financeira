@@ -221,7 +221,10 @@ a {
   flex-direction: column;
   gap: 8px;
 }
-.sidebar nav button {
+.sidebar nav button,
+.sidebar nav a {
+  display: block;
+  text-decoration: none;
   text-align: left;
   border: 0;
   background: transparent;
@@ -229,7 +232,8 @@ a {
   border-radius: 6px;
   padding: 12px 14px;
 }
-.sidebar nav button.active {
+.sidebar nav button.active,
+.sidebar nav a.active {
   background: #304e60;
   color: #fff;
 }
@@ -263,6 +267,9 @@ a {
   border-radius: 50%;
   background: #fff;
   color: var(--ink);
+}
+.bell {
+  text-decoration: none;
 }
 .bell:hover:not(:disabled) {
   border-color: var(--green);
@@ -606,7 +613,8 @@ a {
     overflow: auto;
     gap: 4px;
   }
-  .sidebar nav button {
+  .sidebar nav button,
+  .sidebar nav a {
     white-space: nowrap;
     padding: 8px 12px;
   }
@@ -971,4 +979,18 @@ td.actions {
 }
 .face-modal .inline-actions {
   justify-content: center;
+}
+
+/* Abas do perfil como links (cada aba é uma rota) */
+.tabs a {
+  padding: 12px 18px;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+}
+.tabs a.active {
+  color: var(--navy);
+  font-weight: 600;
+  border-bottom-color: var(--green);
 }

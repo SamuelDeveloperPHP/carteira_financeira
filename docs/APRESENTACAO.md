@@ -155,5 +155,5 @@ backend/
 │   ├── notifications/ avisos de transferência e devolução recebidas
 │   └── admin/         consultas do master (auditor)
 └── test/              unitários e integração
-frontend/app/          page.tsx (telas) e alerts.ts (SweetAlert2)
+frontend/app/          uma rota por tela em (app)/, session.tsx, components/, lib/, profile/ e alerts.ts (SweetAlert2); ver ARQUITETURA.md
 ```

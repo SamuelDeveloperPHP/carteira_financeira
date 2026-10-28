@@ -195,6 +195,36 @@ erDiagram
 
 `movements`, `entries` e `audit_events` são imutáveis (gatilhos + permissões); `access_log` só aceita o preenchimento único do encerramento. `rate_limits` (limite de tentativas) não tem relação com as demais e foi omitida do diagrama.
 
+## Frontend (Next.js, App Router)
+
+Cada item do menu é uma **rota com URL própria**, então o F5 mantém a página, o botão "voltar" funciona e é possível abrir um endereço direto.
+
+```text
+frontend/app
+├── layout.tsx            raiz: estilos, aviso de demonstração e SessionProvider
+├── page.tsx              "/"  entrada: login, cadastro, recuperação de senha e 2FA
+├── session.tsx           contexto da sessão (usuário, estágio, ocupado, sino) + useSession()
+├── api.ts                único ponto de saída para a API (cookie, CSRF, idempotência)
+├── alerts.ts             SweetAlert2 (notify, confirmAction, askInput)
+├── (app)/                grupo das páginas autenticadas (não aparece na URL)
+│   ├── layout.tsx        sidebar, barra superior, sino e códigos de recuperação
+│   ├── carteira/         /carteira        saldo, adicionar saldo, transferência, extrato
+│   ├── notificacoes/     /notificacoes    avisos não lidos
+│   ├── perfil/           /perfil/bancario · /perfil/seguranca · /perfil/acessos
+│   ├── seguranca/        /seguranca       troca do autenticador
+│   ├── sobre/            /sobre
+│   ├── contas/           /contas          (master) busca de contas e extrato
+│   ├── eventos/          /eventos         (master) trilha de auditoria, aceita ?userId=
+│   └── monitoramento/    /monitoramento   (master) indicadores e conciliação
+├── components/           ui (Field, Pager...), Transactions, AuditRow
+├── lib/                  types, format (R$, datas, centavos), locate (geolocalização)
+└── profile/              BankTab, SecurityTab, AccessTab, FaceFlow/FaceCapture, mapas Leaflet
+```
+
+- **Sessão compartilhada:** o `SessionProvider` consulta `/auth/status` uma vez ao abrir qualquer URL; as páginas leem o usuário com `useSession()`. O envelope `work()` (ocupado + try/catch + finally) é o equivalente, no navegador, do `try/catch` do backend.
+- **Guarda de rota no cliente é só conforto:** sem sessão, o layout volta para `/`; perfil errado vai para a própria página inicial (cliente em `/carteira`, master em `/contas`). Quem recusa de verdade é o `AccessGuard` do servidor, qualquer que seja a tela.
+- **Responsabilidade única por arquivo:** cada página carrega só os próprios dados ao montar; componentes compartilhados (`Transactions`, `AuditRow`) recebem tudo por props.
+
 ## Separação de responsabilidades
 
 O backend é um monólito modular NestJS. Cada módulo tem controlador (HTTP), serviços (regras), repositórios (SQL) e DTOs (contrato de entrada):

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./styles.css";
+import { SessionProvider } from "./session";
 export const metadata: Metadata = {
   title: "Carteira Financeira | Demonstração",
   description:
@@ -9,7 +10,15 @@ export const metadata: Metadata = {
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        <SessionProvider>
+          <div className="demo">
+            Ambiente de demonstração — valores simulados. Nenhuma conta bancária
+            real é movimentada.
+          </div>
+          {children}
+        </SessionProvider>
+      </body>
     </html>
   );
 }
