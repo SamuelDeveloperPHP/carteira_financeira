@@ -9,6 +9,7 @@ import {
   LoginDto,
   RegisterDto,
   ResetPasswordDto,
+  ResetRequirementsDto,
   RotateDto,
   VerifyDto,
 } from "./dto/auth.dto";
@@ -83,6 +84,11 @@ export class AuthController {
   @Access("public") @Post("forgot-password")
   forgot(@Body() dto: ForgotPasswordDto, @Req() req: AppRequest) {
     return this.recovery.forgot(dto, req);
+  }
+
+  @Access("public") @Post("reset-requirements")
+  resetRequirements(@Body() dto: ResetRequirementsDto, @Req() req: AppRequest) {
+    return this.recovery.requirements(dto, req);
   }
 
   @Access("public") @Post("reset-password")

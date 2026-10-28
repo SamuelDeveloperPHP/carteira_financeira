@@ -63,13 +63,36 @@ export class SessionsRepository {
       )
     ).rows[0];
   }
-  /** Apaga uma sessão (logout ou troca de token). */
+  /**
+   * Apaga uma sessão (logout ou troca de token). Se ela tinha registro na trilha
+   * de acesso, ele é encerrado como "logout" (a sessão parcial, que não tem
+   * registro, passa sem efeito).
+   */
   async delete(q: Queryable, tokenHash: string) {
     await q.query("DELETE FROM sessions WHERE token_hash=$1", [tokenHash]);
+    await q.query(
+      "UPDATE access_log SET ended_at=now(),end_reason='logout' WHERE token_hash=$1 AND ended_at IS NULL",
+      [tokenHash]
+    );
+  }
+  /**
+   * Fecha, na trilha de acesso, os registros que ficaram sem sessão viva
+   * (revogada por troca de senha/autenticador ou pelo limite de sessões). O
+   * motivo é "expired" se o prazo já havia passado e "revoked" nos demais casos.
+   */
+  private async closeOrphanAccess(q: Queryable, userId: string) {
+    await q.query(
+      `UPDATE access_log SET ended_at=LEAST(now(),expires_at),
+         end_reason=CASE WHEN expires_at<=now() THEN 'expired' ELSE 'revoked' END
+       WHERE user_id=$1 AND ended_at IS NULL
+         AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.token_hash=access_log.token_hash)`,
+      [userId]
+    );
   }
   /** Encerra TODAS as sessões do usuário: troca de senha ou de autenticador. */
   async deleteByUser(q: Queryable, userId: string) {
     await q.query("DELETE FROM sessions WHERE user_id=$1", [userId]);
+    await this.closeOrphanAccess(q, userId);
   }
   // Um novo login por senha substitui qualquer sessão de 2FA deixada pela metade
   // e aproveita para limpar sessões vencidas (sem precisar de rotina agendada).
@@ -86,5 +109,6 @@ export class SessionsRepository {
       "DELETE FROM sessions WHERE user_id=$1 AND stage='full' AND token_hash NOT IN (SELECT token_hash FROM sessions WHERE user_id=$1 AND stage='full' ORDER BY created_at DESC, token_hash LIMIT $2)",
       [userId, keep]
     );
+    await this.closeOrphanAccess(q, userId);
   }
 }

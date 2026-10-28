@@ -75,7 +75,7 @@ export class AccessGuard implements CanActivate {
       );
     // 7) Limite de escritas por usuário (120 por minuto): contém scripts
     //    descontrolados ou uma sessão sequestrada tentando operar em massa.
-    if (req.method === "POST")
+    if (!SAFE_METHODS.includes(req.method))
       await this.limiter.throttle(`write:${req.auth.user_id}`, 120, 60);
     return true;
   }

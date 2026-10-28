@@ -1,4 +1,5 @@
-import { Matches } from "class-validator";
+import { IsOptional, Matches } from "class-validator";
+import { FaceDescriptorField } from "../../settings/dto/settings.dto";
 import {
   CodeField,
   CurrentPasswordField,
@@ -50,4 +51,12 @@ export class ResetPasswordDto {
   @Matches(/^[a-f0-9]{64}$/, { message: "Link inválido ou expirado." })
   token!: string;
   @NewPasswordField() password!: string;
+  /** Vetor facial (128 números); obrigatório só para quem ativou o reconhecimento facial. */
+  @IsOptional() @FaceDescriptorField() face?: number[];
+}
+
+/** Pergunta se a redefinição com este link exigirá o rosto. */
+export class ResetRequirementsDto {
+  @Matches(/^[a-f0-9]{64}$/, { message: "Link inválido ou expirado." })
+  token!: string;
 }

@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common";
+import { AccessModule } from "../access/access.module";
+import { SettingsModule } from "../settings/settings.module";
 import { UsersModule } from "../users/users.module";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
@@ -17,7 +19,9 @@ import { TwoFactorService } from "./two-factor.service";
  *   PasswordRecoveryService -> link de redefinição de senha
  */
 @Module({
-  imports: [UsersModule],
+  // SettingsModule: geolocalização no login e rosto na recuperação de senha.
+  // AccessModule: abre o registro da trilha de acesso.
+  imports: [UsersModule, SettingsModule, AccessModule],
   controllers: [AuthController],
   providers: [
     AuthService,

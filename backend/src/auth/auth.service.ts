@@ -25,6 +25,8 @@ import {
   token,
 } from "../common/security/crypto";
 import { location } from "../common/security/validation";
+import { AccessLogRepository } from "../access/access-log.repository";
+import { SettingsService } from "../settings/settings.service";
 import { UsersRepository } from "../users/users.repository";
 import { LoginDto, RegisterDto, VerifyDto } from "./dto/auth.dto";
 import { SessionsRepository } from "./sessions.repository";
@@ -51,7 +53,9 @@ export class AuthService {
     private readonly sessions: SessionsRepository,
     private readonly twoFactor: TwoFactorService,
     private readonly audit: AuditService,
-    private readonly limiter: RateLimiter
+    private readonly limiter: RateLimiter,
+    private readonly settings: SettingsService,
+    private readonly access: AccessLogRepository
   ) {}
 
   /**
@@ -132,6 +136,10 @@ export class AuthService {
     if (!user || !valid)
       throw new UnauthorizedException("Credenciais inválidas.");
     req.actorId = user.id;
+    // Preferência do usuário: com a geolocalização desligada, a localização que o
+    // navegador enviou é DESCARTADA (nem a auditoria nem a trilha de acesso a guardam).
+    if (!(await this.settings.geolocationAllowed(user.id)))
+      req.accessLocation = { status: "disabled" };
     // 4) Senha correta: abre uma sessão PARCIAL. Ainda não dá acesso ao dinheiro;
     //    falta o segundo fator.
     return this.db.transaction(async tx => {
@@ -236,6 +244,17 @@ export class AuthService {
         context: session.context,
       });
       await this.sessions.trimFull(tx, user.id, MAX_FULL_SESSIONS);
+      // Trilha de acesso: IP, aparelho e localização vêm do login por senha
+      // (contexto da sessão parcial); a duração é medida até o logout/vencimento.
+      await this.access.open(tx, {
+        id: randomUUID(),
+        userId: user.id,
+        tokenHash: digest(value),
+        minutes: FULL_SESSION_MINUTES,
+        ip: session.context.ip ?? null,
+        device: session.context.device ?? null,
+        location: session.context.location,
+      });
       await this.audit.record(
         "auth.login",
         user.id,

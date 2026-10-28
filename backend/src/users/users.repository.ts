@@ -37,6 +37,12 @@ export class UsersRepository {
     return (await q.query("SELECT * FROM users WHERE email=$1", [email]))
       .rows[0];
   }
+  async findById(
+    id: string,
+    q: Queryable = this.db.pool
+  ): Promise<UserRow | undefined> {
+    return (await q.query("SELECT * FROM users WHERE id=$1", [id])).rows[0];
+  }
   // Só clientes comuns recebem dinheiro: o filtro role='user' impede transferir
   // para o master, que é um perfil exclusivo de auditoria e não tem carteira operável.
   async findCustomerIdByEmail(
