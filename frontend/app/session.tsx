@@ -28,7 +28,7 @@ import { setGeoHint } from "./profile/geo-hint";
 
 /** Página inicial de cada perfil, depois do login. */
 export const homeOf = (role: User["role"]) =>
-  role === "master" ? "/contas" : "/carteira";
+  role === "master" ? "/contas" : "/relatorios";
 
 interface Session {
   /** false até /auth/status responder (evita piscar a tela de login). */

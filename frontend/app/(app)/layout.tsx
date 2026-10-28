@@ -19,7 +19,7 @@ type Item = { href: string; title: string; badge?: boolean };
 
 const USER_NAV: Item[] = [
   { href: "/carteira", title: "Minha carteira" },
-  { href: "/bi", title: "Painel de BI" },
+  { href: "/relatorios", title: "Relatórios" },
   { href: "/notificacoes", title: "Notificações", badge: true },
   { href: "/perfil", title: "Meu perfil" },
   { href: "/seguranca", title: "Segurança" },
@@ -34,7 +34,7 @@ const MASTER_NAV: Item[] = [
 ];
 const TITLES: Record<string, string> = {
   "/carteira": "Minha carteira",
-  "/bi": "Painel de BI",
+  "/relatorios": "Relatórios",
   "/notificacoes": "Notificações",
   "/perfil": "Meu perfil",
   "/seguranca": "Segurança",
