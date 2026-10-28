@@ -18,8 +18,8 @@ import { homeOf, useSession } from "../session";
 type Item = { href: string; title: string; badge?: boolean };
 
 const USER_NAV: Item[] = [
-  { href: "/carteira", title: "Minha carteira" },
   { href: "/relatorios", title: "Relatórios" },
+  { href: "/carteira", title: "Minha carteira" },
   { href: "/notificacoes", title: "Notificações", badge: true },
   { href: "/perfil", title: "Meu perfil" },
   { href: "/seguranca", title: "Segurança" },
