@@ -35,6 +35,16 @@ export class PasswordResetsRepository {
     ).rows[0]?.user_id;
   }
 
+  /** Consulta SEM gastar o link: de quem é, se ainda vale. Usado para saber se a redefinição exigirá o rosto. */
+  async peek(q: Queryable, tokenHash: string): Promise<string | undefined> {
+    return (
+      await q.query(
+        "SELECT user_id FROM password_resets WHERE token_hash=$1 AND expires_at>now()",
+        [tokenHash]
+      )
+    ).rows[0]?.user_id;
+  }
+
   /** Invalida todos os links pendentes do usuário (após trocar senha ou autenticador). */
   async deleteForUser(q: Queryable, userId: string) {
     await q.query("DELETE FROM password_resets WHERE user_id=$1", [userId]);

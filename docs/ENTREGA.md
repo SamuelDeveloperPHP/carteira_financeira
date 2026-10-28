@@ -12,7 +12,8 @@
 7. Entre com o master usando `.local/master.json` e configure seu próprio 2FA. Consulte contas, extratos, eventos, IP e localização disponível.
 8. Filtre os acessos e rastreie uma movimentação. A própria consulta do master deixa registro.
 9. Mostre monitoramento/conciliação e explique os testes de concorrência, rollback e repetição de requisições.
-10. Ressalte que os valores são simulados e que a integração bancária é uma evolução futura.
+10. Em "Meu perfil": cadastre uma conta (CPF válido do titular) e registre chaves Pix (CPF é aprovado na hora; e-mail pede o código, que aparece no log da API). Tente repetir uma chave e veja a recusa. Na aba "Segurança" ligue/desligue biometria e geolocalização e ative o reconhecimento facial (a câmera pede a prova de vida). Na aba "Trilha de acesso" confira o histórico (entrada, saída, permanência), o mapa de cada acesso e o mapa geral, com tooltip em cada marcador.
+11. Ressalte que os valores são simulados e que a integração bancária é uma evolução futura.
 
 ## Verificação automatizada
 
@@ -22,7 +23,7 @@ docker compose --env-file .docker.env --profile test run --rm tests
 
 Banco de testes separado, com armazenamento temporário. O teste recusa uma URL cujo banco não termine em `_test`. As credenciais da aplicação de teste também têm permissões restritas; a conexão de proprietário é usada apenas para preparar cenários e injetar falhas controladas nesse banco.
 
-Suíte validada em 27/10/2026: **74 testes aprovados**: 5 unitários de segurança, 49 unitários de regras (transferência, devolução, notificações, depósito do operador e do usuário, queda do provedor, rollback simulado, falha do próprio rollback, DTOs, guard e recuperação de senha, com repositórios em memória) e a suíte de integração contra PostgreSQL com seus cenários. Abrange recuperação de senha (link de 7 minutos, uso único), 25 saídas simultâneas sobre o mesmo saldo, limite de 5 sessões por usuário, orçamento de auditoria para ruído anônimo, saldo zero, 2FA obrigatório, recuperação de uso único, depósito controlado/idempotente, autorização, concorrência financeira, devolução integral, saldo insuficiente, rollback provocado no crédito, restrições do histórico, consultas master, localização, limitação de tentativas, rotação do autenticador e logout. Os erros 500 registrados durante o cenário de falha provocada são esperados pelo teste.
+Suíte validada em 28/10/2026: **91 testes aprovados**: 5 unitários de segurança, 66 unitários de regras (transferência, devolução, notificações, depósito do operador e do usuário, contas bancárias e chaves Pix, rosto cifrado e comparado, queda do provedor, rollback simulado, falha do próprio rollback, DTOs, guard e recuperação de senha, com repositórios em memória) e a suíte de integração contra PostgreSQL com seus cenários. Abrange recuperação de senha (link de 7 minutos, uso único), 25 saídas simultâneas sobre o mesmo saldo, limite de 5 sessões por usuário, orçamento de auditoria para ruído anônimo, saldo zero, 2FA obrigatório, recuperação de uso único, depósito controlado/idempotente, autorização, concorrência financeira, devolução integral, saldo insuficiente, rollback provocado no crédito, restrições do histórico, consultas master, localização, limitação de tentativas, rotação do autenticador e logout. Os erros 500 registrados durante o cenário de falha provocada são esperados pelo teste.
 
 As imagens Docker compilam backend e frontend com TypeScript. A instalação das dependências das imagens informou zero vulnerabilidades conhecidas no momento da verificação; isso não substitui uma auditoria de segurança de produção.
 
@@ -36,6 +37,7 @@ As imagens Docker compilam backend e frontend com TypeScript. A instalação das
 | CF-12 e CF-13 | Interface operacional da carteira e área administrativa |
 | CF-14 e CF-15 | Testes, Docker, documentação e roteiro |
 | CF-16 | Indicadores, conciliação e alertas visuais sob demanda |
-| CF-17 | Linha do tempo e posição em grade geográfica local; sem mapa externo de ruas |
+| CF-17 | Linha do tempo e posição em grade geográfica local no painel do master |
+| CF-18 | Perfil: contas e chaves Pix (aprovação simulada), preferências, reconhecimento facial na recuperação de senha, trilha de acesso com mapas Leaflet |
 
 O template original foi preservado. A aplicação entregue usa `frontend/`, reaproveitando Bootstrap e fontes locais, e `backend/`. Não há dependência de PHP/Apache/WAMP para executar os containers.

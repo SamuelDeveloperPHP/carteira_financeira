@@ -1,4 +1,10 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+} from "@nestjs/common";
+import { FaceMismatchException, FaceService } from "../settings/face.service";
 import { AuditService } from "../common/audit/audit.service";
 import { RESET_MINUTES } from "../common/constants";
 import { Database } from "../common/database/database.service";
@@ -7,7 +13,11 @@ import { AppRequest } from "../common/http/request.types";
 import { RateLimiter } from "../common/rate-limit/rate-limiter.service";
 import { digest, hashPassword, token } from "../common/security/crypto";
 import { UsersRepository } from "../users/users.repository";
-import { ForgotPasswordDto, ResetPasswordDto } from "./dto/auth.dto";
+import {
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  ResetRequirementsDto,
+} from "./dto/auth.dto";
 import { MAIL_PROVIDER, MailProvider } from "./mail/mail.provider";
 import { PasswordResetsRepository } from "./password-resets.repository";
 import { SessionsRepository } from "./sessions.repository";
@@ -34,8 +44,22 @@ export class PasswordRecoveryService {
     private readonly sessions: SessionsRepository,
     private readonly audit: AuditService,
     private readonly limiter: RateLimiter,
-    @Inject(MAIL_PROVIDER) private readonly mail: MailProvider
+    @Inject(MAIL_PROVIDER) private readonly mail: MailProvider,
+    private readonly faces: FaceService
   ) {}
+
+  /**
+   * Diz se a redefinição com este link exigirá o reconhecimento facial (o usuário
+   * o ativou). Não gasta o link. Quem pergunta já tem o link, então a resposta
+   * não revela nada novo; link inválido responde "não" e falha na redefinição.
+   */
+  async requirements(dto: ResetRequirementsDto, req: AppRequest) {
+    await this.limiter.throttle(`reset-ip:${req.ip}`, 20);
+    const userId = await this.resets.peek(this.db.pool, digest(dto.token));
+    return {
+      faceRequired: userId ? await this.faces.isRequired(userId) : false,
+    };
+  }
 
   /**
    * Gera e envia o link de redefinição.
@@ -110,6 +134,19 @@ export class PasswordRecoveryService {
     await this.limiter.throttle(`reset-ip:${req.ip}`, 20);
     // scrypt é lento de propósito: calculado antes da transação para não segurar a conexão.
     const hash = await hashPassword(dto.password);
+    try {
+      return await this.redefine(dto, hash, req);
+    } catch (e) {
+      // Rosto que não confere: a transação já foi desfeita (o link continua
+      // valendo); só agora a recusa é auditada, sem disputar o bloqueio do usuário.
+      if (e instanceof FaceMismatchException)
+        await this.faces.auditMismatch(e.userId, auditContext(req));
+      throw e;
+    }
+  }
+
+  /** Corpo transacional da redefinição, separado para o `reset` auditar recusas após o rollback. */
+  private redefine(dto: ResetPasswordDto, hash: string, req: AppRequest) {
     return this.db.transaction(async tx => {
       // Compara pelo hash do token; link expirado, usado ou inventado cai no mesmo erro.
       const userId = await this.resets.consume(tx, digest(dto.token));
@@ -119,6 +156,16 @@ export class PasswordRecoveryService {
         );
       req.targetResource = userId;
       await this.users.lockById(tx, userId);
+      // Com o reconhecimento facial ativo, o link do e-mail NÃO basta: o rosto
+      // também precisa conferir. Se falhar, esta transação é desfeita e o link
+      // volta a valer (até o limite de tentativas e os 7 minutos de validade).
+      if (await this.faces.isRequired(userId, tx)) {
+        if (!dto.face)
+          throw new ForbiddenException(
+            "Confirme seu rosto para redefinir a senha."
+          );
+        await this.faces.assertMatch(userId, dto.face, auditContext(req), tx);
+      }
       await this.users.setPassword(tx, userId, hash);
       await this.sessions.deleteByUser(tx, userId);
       await this.resets.deleteForUser(tx, userId);

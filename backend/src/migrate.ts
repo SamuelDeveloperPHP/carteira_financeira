@@ -71,6 +71,13 @@ async function migrate() {
     await c.query(
       "GRANT SELECT, INSERT ON movements, entries, idempotency, audit_events TO wallet_app"
     );
+    // Perfil: cadastro do usuário, alterável pela API.
+    await c.query(
+      "GRANT SELECT, INSERT, UPDATE, DELETE ON user_settings, face_templates, bank_accounts, pix_keys TO wallet_app"
+    );
+    // Trilha de acesso: ler, inserir e encerrar (UPDATE restrito pelo gatilho
+    // da 004 ao preenchimento único de ended_at). Sem DELETE.
+    await c.query("GRANT SELECT, INSERT, UPDATE ON access_log TO wallet_app");
     // Necessário para os ids sequenciais (bigserial) de entries e audit_events.
     await c.query(
       "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO wallet_app"

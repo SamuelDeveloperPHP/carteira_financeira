@@ -32,6 +32,25 @@ export const SELF_DEPOSIT_PER_HOUR = 20;
 /** Janela do limite acima: 1 hora. */
 export const SELF_DEPOSIT_WINDOW_SECONDS = 3600;
 
+/** Máximo de contas bancárias cadastradas por usuário. */
+export const MAX_BANK_ACCOUNTS = 10;
+/** Validade do código de posse de uma chave Pix (e-mail/celular) e tentativas permitidas. */
+export const PIX_PROOF_MINUTES = 10;
+export const PIX_PROOF_MAX_ATTEMPTS = 5;
+
+/**
+ * Distância euclidiana máxima entre dois vetores faciais de 128 números para
+ * considerar a mesma pessoa. 0,6 é o padrão da biblioteca; 0,5 é mais rígido,
+ * reduzindo falsos positivos ao custo de alguns falsos negativos.
+ */
+export const FACE_MATCH_THRESHOLD = 0.5;
+/** Tentativas de verificação facial por usuário na janela padrão (15 min). */
+export const FACE_ATTEMPTS = 5;
+
+/** Itens por página na trilha de acesso e máximo de pontos no mapa geral. */
+export const ACCESS_PAGE_SIZE = 10;
+export const ACCESS_MAP_LIMIT = 200;
+
 /** Itens por página no extrato e na lista de contas. */
 export const PAGE_SIZE = 20;
 

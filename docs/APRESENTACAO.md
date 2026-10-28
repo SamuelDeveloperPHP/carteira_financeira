@@ -55,7 +55,7 @@ Além disso, **idempotência**: repetir a mesma requisição (clique duplo, falh
 | **Padrões e SOLID** | Repository; Unit of Work (`Database.transaction`); inversão de dependência (`MAIL_PROVIDER`, `DEPOSIT_PROVIDER`: trocar o provedor é mudar uma linha no módulo); responsabilidade única (razão, idempotência, transferência, depósito e 2FA são serviços separados); guard e filtro globais do Nest. |
 | **Modelagem de dados** | Abra `backend/migrations/001_initial.sql`: cada tabela e restrição está comentada. Destaque `movements` + `entries` (razão), `idempotency`, `audit_events` e os gatilhos de histórico imutável. |
 | **Docker** | `compose.yaml`: gateway Nginx, API, frontend, PostgreSQL; perfil `test` com banco isolado em memória. |
-| **Testes** | 60 testes: unitários de regra (repositórios em memória, sem banco) e integração contra PostgreSQL real (concorrência, rollback, autorização). |
+| **Testes** | 91 testes: unitários de regra (repositórios em memória, sem banco) e integração contra PostgreSQL real (concorrência, rollback, autorização). |
 | **Documentação** | README, `docs/API.md`, `ARQUITETURA.md`, `ENTREGA.md` e este roteiro; código comentado. |
 | **Monitoramento e logging** | Log estruturado com ID de correlação (`X-Request-Id`) ligado à auditoria; painel de métricas, conciliação e alertas; `/api/health`. |
 
@@ -104,6 +104,18 @@ Para o escopo, o monólito modular reduz complexidade operacional e mantém a co
 
 **Como funcionam as notificações?**
 Quem recebe uma transferência, e quem enviou uma transferência que foi devolvida, ganha um aviso. Ele é criado na MESMA transação do movimento: se houver rollback, o aviso some junto (ninguém é avisado de dinheiro que não chegou), e uma repetição idempotente não duplica. O sino da barra consulta um contador barato a cada 15 s; a página lista só as não lidas e, ao ler, o aviso some (a linha fica no banco com `read_at`). É a única tabela do domínio com UPDATE permitido à API, e isso não toca nos movimentos imutáveis.
+
+**As chaves Pix são aprovadas "de acordo com o BACEN"?**
+O fluxo imita o do arranjo Pix (validação do formato, o CPF/CNPJ tem de ser do titular, prova de posse por código para e-mail e celular, unicidade, limite de 5 chaves por conta de pessoa física e 20 de jurídica), mas a aprovação é uma simulação atrás da interface `PixDirectoryProvider`. Não há credenciamento nem chamada ao DICT real; para isso seria preciso ser instituição participante. Trocar a simulação é implementar a interface e mudar uma linha no módulo.
+
+**Como a chave Pix não se repete?**
+`UNIQUE(key_value)` no banco, global: a chave existe em uma só conta (como no DICT), então nunca se repete dentro de um banco. A checagem antecipada só responde rápido; se dois cadastros simultâneos passarem por ela, o banco decide (erro 23505, que vira 409).
+
+**Dá para recuperar a senha só com o rosto?**
+Não, de propósito. A prova de vida (direita, esquerda, abaixar, levantar, sorrir) roda no navegador, que quem ataca controla; uma foto bem escolhida ou uma requisição forjada podem enganá-la. Por isso o rosto soma-se ao link de 7 minutos do e-mail. O vetor facial fica cifrado, nunca é devolvido, ativar/desativar pedem a senha e as tentativas são limitadas. Em produção, o aplicativo móvel usaria Face ID/BiometricPrompt ou um serviço de prova de vida certificado.
+
+**Como a trilha de acesso mede a permanência?**
+Cada login completo grava um registro com IP, aparelho e localização. O encerramento é gravado no logout, na troca de senha/autenticador, ao passar de 5 sessões ou no vencimento; a duração é a diferença entre saída e entrada. Um gatilho no banco só deixa preencher o encerramento uma vez, então o histórico não é reescrito. A localização é declarada pelo navegador (não verificada) e é descartada se o usuário desligar a geolocalização.
 
 **Como trocaria o provedor de e-mail/pagamento?**
 Implementar a interface (`MailProvider` ou `DepositProvider`) e trocar o *binding* no módulo. Nenhuma regra de negócio muda.

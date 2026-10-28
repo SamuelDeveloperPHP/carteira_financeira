@@ -16,7 +16,19 @@ function setup() {
     mails: [],
     throttles: [],
   };
-  const db = { transaction: work => work({}) };
+  // Simula o ROLLBACK: se a transação lançar, o estado dos links volta ao que era.
+  const db = {
+    pool: {},
+    transaction: async work => {
+      const snapshot = new Map(state.resets);
+      try {
+        return await work({});
+      } catch (e) {
+        state.resets = snapshot;
+        throw e;
+      }
+    },
+  };
   const users = {
     findByEmail: async email => state.users.get(email),
     lockById: async () => {},
@@ -45,9 +57,16 @@ function setup() {
     name: "test",
     sendPasswordReset: async (to, token, minutes) => state.mails.push({ to, token, minutes }),
   };
-  const service = new recoveryModule.PasswordRecoveryService(db, users, resets, sessions, audit, limiter, mail);
+  const faces = {
+    required: false,
+    isRequired: async () => faces.required,
+    assertMatch: async (_u, candidate) => {
+      if (candidate !== "rosto-certo") throw Object.assign(new Error("x"), { getStatus: () => 403 });
+    },
+  };
+  const service = new recoveryModule.PasswordRecoveryService(db, users, resets, sessions, audit, limiter, mail, faces);
   const req = { ip: "127.0.0.1", correlationId: "c", headers: {} };
-  return { state, service, req };
+  return { state, service, req, faces, resets };
 }
 
 test("o pedido responde igual para e-mail cadastrado ou desconhecido", async () => {
@@ -99,11 +118,33 @@ test("falha no envio do e-mail não revela nem derruba o pedido", async () => {
       {},
       { record: async () => {} },
       { throttle: async () => {} },
-      { name: "x", sendPasswordReset: async () => { throw new Error("smtp"); } }
+      { name: "x", sendPasswordReset: async () => { throw new Error("smtp"); } },
+      {}
     );
     const answer = await failing.forgot({ email: "ana@example.test" }, { ...req });
     assert.match(answer.message, /7 minutos/);
   } finally {
     console.error = original;
   }
+});
+
+test("com reconhecimento facial ativo, o link sozinho não redefine a senha", async () => {
+  const { state, service, req, faces } = setup();
+  faces.required = true;
+  await service.forgot({ email: "ana@example.test" }, { ...req });
+  const { token } = state.mails[0];
+  // Sem rosto: recusado, e a senha antiga continua valendo.
+  await assert.rejects(
+    service.reset({ token, password: "uma-senha-bem-longa" }, { ...req }),
+    e => e.getStatus() === 403
+  );
+  // Rosto que não confere: recusado.
+  await assert.rejects(
+    service.reset({ token, password: "uma-senha-bem-longa", face: "outro" }, { ...req }),
+    e => e.getStatus() === 403
+  );
+  assert.equal(state.users.get("ana@example.test").password_hash, "antigo");
+  // Rosto correto: redefine.
+  const ok = await service.reset({ token, password: "uma-senha-bem-longa", face: "rosto-certo" }, { ...req });
+  assert.match(ok.message, /Senha redefinida/);
 });

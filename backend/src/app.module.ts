@@ -1,6 +1,9 @@
 import { Module } from "@nestjs/common";
 import { APP_FILTER, APP_GUARD, APP_PIPE } from "@nestjs/core";
+import { AccessModule } from "./access/access.module";
 import { AdminModule } from "./admin/admin.module";
+import { BankingModule } from "./banking/banking.module";
+import { SettingsModule } from "./settings/settings.module";
 import { AuthModule } from "./auth/auth.module";
 import { AuditModule } from "./common/audit/audit.module";
 import { DatabaseModule } from "./common/database/database.module";
@@ -31,6 +34,9 @@ import { WalletModule } from "./wallet/wallet.module";
     AuthModule, // cadastro, login, 2FA, recuperação de senha
     WalletModule, // saldo, extrato, transferência, devolução, depósito
     NotificationsModule, // avisos de transferência e devolução recebidas
+    BankingModule, // contas bancárias e chaves Pix
+    SettingsModule, // preferências de segurança e reconhecimento facial
+    AccessModule, // trilha de acesso (login/logout, duração, localização)
     AdminModule, // consultas do master (auditor)
     HealthModule, // /api/health para o monitoramento do Docker
   ],
