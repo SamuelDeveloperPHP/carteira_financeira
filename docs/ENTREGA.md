@@ -21,6 +21,17 @@
 docker compose --env-file .docker.env --profile test run --rm tests
 ```
 
+**Testes de tela (ponta a ponta).** Com o sistema no ar (`scripts/setup.ps1`), o Playwright percorre o fluxo do cliente em um navegador real, com duas contas novas: cadastro, 2FA (o código sai do segredo exibido na tela), adicionar saldo, saldo insuficiente, cancelar a confirmação, transferência, sino e notificação, devolução, aviso da devolução, painel de BI, trilha de acesso com localização, F5, logout e rotas protegidas.
+
+```powershell
+cd e2e
+npm ci
+npx playwright install chromium
+npm test
+```
+
+**Integração contínua.** `.github/workflows/ci.yml` roda a cada envio e a cada pull request: (1) os testes do backend no Docker, (2) verificação de tipos do backend e do frontend e auditoria de dependências (informativa) e (3) o sistema completo no Docker com os testes de tela. Segredos são gerados na hora em cada execução; em caso de falha, o relatório do Playwright e os logs dos containers ficam anexados. A pipeline ainda não foi executada no GitHub; os mesmos comandos foram executados localmente.
+
 Banco de testes separado, com armazenamento temporário. O teste recusa uma URL cujo banco não termine em `_test`. As credenciais da aplicação de teste também têm permissões restritas; a conexão de proprietário é usada apenas para preparar cenários e injetar falhas controladas nesse banco.
 
 Suíte validada em 28/10/2026: **101 testes aprovados**: 5 unitários de segurança, 75 unitários de regras (transferência, devolução, notificações, depósito do operador e do usuário, contas bancárias e chaves Pix, rosto cifrado e comparado, queda do provedor, rollback simulado, falha do próprio rollback, DTOs, guard e recuperação de senha, com repositórios em memória) e a suíte de integração contra PostgreSQL com seus cenários. Abrange recuperação de senha (link de 7 minutos, uso único), 25 saídas simultâneas sobre o mesmo saldo, limite de 5 sessões por usuário, orçamento de auditoria para ruído anônimo, saldo zero, 2FA obrigatório, recuperação de uso único, depósito controlado/idempotente, autorização, concorrência financeira, devolução integral, saldo insuficiente, rollback provocado no crédito, restrições do histórico, consultas master, localização, limitação de tentativas, rotação do autenticador e logout. Os erros 500 registrados durante o cenário de falha provocada são esperados pelo teste.
