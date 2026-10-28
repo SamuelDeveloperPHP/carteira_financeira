@@ -150,6 +150,7 @@ Essas premissas complementam o enunciado e devem constar na documentação da en
 | CF-14 | P0 | Testes dos fluxos críticos | G | CF-02 a CF-11 |
 | CF-15 | P0 | Execução reproduzível, documentação e demonstração | M | CF-01 a CF-14 |
 | CF-16 | P1 | Alertas e indicadores operacionais | M | CF-09, CF-15 |
+| CF-18 | P1 | Perfil do usuário: dados bancários e Pix, preferências, reconhecimento facial e trilha de acesso com mapas | G | CF-03, CF-04, CF-10 |
 | CF-17 | P1 | Melhorias visuais da investigação | M | CF-10, CF-13 |
 
 **CF-12 — Critérios de aceite**
