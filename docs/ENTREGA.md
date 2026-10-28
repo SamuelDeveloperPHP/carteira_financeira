@@ -52,4 +52,4 @@ As imagens Docker compilam backend e frontend com TypeScript. A instalação das
 | CF-19 | Painel de BI do usuário: indicadores, gráficos em SVG e sugestões automáticas, em página própria |
 | CF-18 | Perfil: contas e chaves Pix (aprovação simulada), preferências, reconhecimento facial na recuperação de senha, trilha de acesso com mapas Leaflet |
 
-O template original foi preservado. A aplicação entregue usa `frontend/`, reaproveitando Bootstrap e fontes locais, e `backend/`. Não há dependência de PHP/Apache/WAMP para executar os containers.
+A aplicação entregue usa `frontend/` e `backend/`; o template visual de partida (Velzon) foi removido por não ser usado. Não há dependência de PHP/Apache/WAMP para executar os containers.
