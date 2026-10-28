@@ -9,6 +9,192 @@ Operador local → comando controlado de depósito / provisionamento master
 
 Gateway e PostgreSQL publicam portas limitadas a 127.0.0.1: 3080 para a aplicação e 5433 para acesso local pelo DBeaver. API e frontend usam apenas rede Docker privada. O gateway sobrescreve o cabeçalho de IP encaminhado, e a API confia em um único proxy. Em Docker Desktop, NAT pode fazer o IP observado corresponder ao intermediário local; ele não deve ser apresentado como identificação inequívoca de um telefone.
 
+## Diagramas
+
+### 1. Containers (Docker Compose)
+
+```mermaid
+flowchart LR
+  user([Navegador]) -->|HTTP 127.0.0.1:3080| gw[Gateway Nginx<br/>cabeçalhos de segurança<br/>IP confiável]
+  gw -->|"/"| web[Frontend Next.js<br/>React + SweetAlert2<br/>Leaflet + face-api.js]
+  gw -->|"/api/*"| api[API NestJS<br/>usuário de banco wallet_app<br/>somente leitura/escrita mínima]
+  api -->|SQL parametrizado| db[(PostgreSQL 16)]
+  mig[migrate<br/>dono do banco] -->|migrações + permissões| db
+  op([Operador local]) -.->|comando operator<br/>depósito / master| api
+  dbeaver([DBeaver]) -.->|127.0.0.1:5433| db
+  user -.->|imagens do mapa| osm[(OpenStreetMap)]
+  api -.->|porta simulada| pix[[PixDirectoryProvider<br/>DICT simulado]]
+  api -.->|porta simulada| mail[[MailProvider / DepositProvider<br/>simulados]]
+```
+
+Só o gateway e o PostgreSQL (para o DBeaver) publicam portas, ambos em `127.0.0.1`. A API conecta como `wallet_app`, que não altera o esquema nem o histórico; as migrações rodam em um container separado com o dono do banco. Linhas tracejadas são integrações opcionais ou simuladas.
+
+### 2. Camadas do backend
+
+```mermaid
+flowchart TB
+  req([Requisição]) --> guard[AccessGuard global<br/>origem, sessão, 2FA, perfil, limite de escrita]
+  guard --> pipe[ValidationPipe global<br/>DTO com whitelist]
+  pipe --> ctl[Controller<br/>só traduz HTTP]
+  ctl --> svc[Service<br/>regra de negócio + transação]
+  svc --> uow[Database.transaction<br/>unidade de trabalho]
+  svc --> repo[Repository<br/>único lugar com SQL]
+  svc -->|interfaces por token| ports[Provedores<br/>MAIL_PROVIDER · DEPOSIT_PROVIDER · PIX_DIRECTORY]
+  svc --> aud[AuditService<br/>trilha somente de inclusão]
+  repo --> pg[(PostgreSQL)]
+  uow --> pg
+  svc -. exceção .-> flt[ErrorsFilter global<br/>resposta segura + auditoria]
+```
+
+```mermaid
+flowchart LR
+  app[AppModule] --> auth[auth<br/>cadastro · login · 2FA · recuperação]
+  app --> wallet[wallet<br/>razão · transferência · devolução · depósito]
+  app --> notif[notifications]
+  app --> banking[banking<br/>contas · chaves Pix]
+  app --> settings[settings<br/>preferências · rosto]
+  app --> access[access<br/>trilha de acesso]
+  app --> admin[admin<br/>consultas do master]
+  app --> infra[common<br/>database · audit · rate-limit · http · security]
+  auth --> settings
+  auth --> access
+  wallet --> notif
+```
+
+### 3. Transferência (consistência e reversão)
+
+```mermaid
+sequenceDiagram
+  participant B as Navegador
+  participant G as AccessGuard
+  participant T as TransfersService
+  participant D as PostgreSQL (uma transação)
+  B->>G: POST /transfers + Idempotency-Key
+  G->>G: origem, sessão completa, perfil, limite
+  G->>T: usuário da sessão (nunca do corpo)
+  T->>D: BEGIN
+  T->>D: bloqueio de idempotência (chave + escopo)
+  alt chave já usada com os mesmos dados
+    D-->>T: movimento original
+    T-->>B: resultado original (sem pagar de novo)
+  else nova solicitação
+    T->>D: FOR UPDATE nas duas carteiras, em ordem de id
+    T->>D: confere saldo, debita e credita
+    T->>D: INSERT movimento + 2 lançamentos (partida dobrada)
+    T->>D: INSERT notificação + idempotência + auditoria
+    T->>D: COMMIT
+    T-->>B: movimento + mensagem
+  end
+  Note over T,D: qualquer erro faz ROLLBACK de tudo<br/>e a falha é auditada depois, fora da transação
+```
+
+A devolução é um **novo** movimento ligado ao original (`UNIQUE(original_id)`); nada é apagado nem editado.
+
+### 4. Modelo de dados
+
+```mermaid
+erDiagram
+  users ||--|| wallets : possui
+  users ||--o{ sessions : abre
+  users ||--o{ recovery_codes : tem
+  users ||--o{ password_resets : solicita
+  users ||--o{ movements : "envia (sender)"
+  users ||--o{ movements : "recebe (recipient)"
+  users ||--o{ notifications : recebe
+  users ||--o{ audit_events : "autor"
+  users ||--o| user_settings : preferencias
+  users ||--o| face_templates : "rosto cifrado"
+  users ||--o{ bank_accounts : cadastra
+  users ||--o{ access_log : acessos
+  bank_accounts ||--o{ pix_keys : "até 5 PF / 20 PJ"
+  wallets ||--o{ entries : lancamentos
+  movements ||--|{ entries : "2 por movimento"
+  movements ||--o| movements : "devolução (original_id único)"
+  movements ||--o{ notifications : origina
+  movements ||--o| idempotency : "chave"
+
+  users {
+    uuid id PK
+    text email UK
+    text password_hash "scrypt"
+    text role "user | master"
+    text totp_secret "AES-256-GCM"
+    bigint last_totp_step "anti-replay"
+  }
+  wallets {
+    uuid user_id PK
+    bigint balance "CHECK 0..10 bi (centavos)"
+  }
+  movements {
+    uuid id PK
+    text kind "deposit | transfer | refund"
+    uuid sender_id
+    uuid recipient_id
+    bigint amount "centavos"
+    uuid original_id UK
+  }
+  entries {
+    bigserial id PK
+    uuid movement_id
+    uuid user_id
+    bigint delta "assinado"
+    bigint balance_after
+  }
+  idempotency {
+    text scope PK
+    text key PK
+    text fingerprint
+  }
+  audit_events {
+    bigserial id PK
+    text action
+    text outcome
+    uuid correlation_id
+    jsonb location
+  }
+  sessions {
+    text token_hash PK "SHA-256"
+    text stage "setup | challenge | full"
+  }
+  access_log {
+    uuid id PK
+    text token_hash
+    timestamptz started_at
+    timestamptz ended_at "preenchido uma vez"
+    jsonb location
+  }
+  pix_keys {
+    uuid id PK
+    text key_type
+    text key_value UK "global"
+    text status "pending | approved | rejected"
+  }
+  bank_accounts {
+    uuid id PK
+    char bank_code
+    varchar agency
+    varchar account_number
+    varchar holder_document
+  }
+  notifications {
+    uuid id PK
+    text kind
+    timestamptz read_at
+  }
+  face_templates {
+    uuid user_id PK
+    text template "AES-256-GCM"
+  }
+  user_settings {
+    uuid user_id PK
+    boolean biometric_enabled
+    boolean geolocation_enabled
+    boolean face_enabled
+  }
+```
+
+`movements`, `entries` e `audit_events` são imutáveis (gatilhos + permissões); `access_log` só aceita o preenchimento único do encerramento. `rate_limits` (limite de tentativas) não tem relação com as demais e foi omitida do diagrama.
+
 ## Separação de responsabilidades
 
 O backend é um monólito modular NestJS. Cada módulo tem controlador (HTTP), serviços (regras), repositórios (SQL) e DTOs (contrato de entrada):
