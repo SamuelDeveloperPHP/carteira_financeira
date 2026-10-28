@@ -117,7 +117,7 @@ Não, de propósito. A prova de vida (direita, esquerda, abaixar, levantar, sorr
 **Como a trilha de acesso mede a permanência?**
 Cada login completo grava um registro com IP, aparelho e localização. O encerramento é gravado no logout, na troca de senha/autenticador, ao passar de 5 sessões ou no vencimento; a duração é a diferença entre saída e entrada. Um gatilho no banco só deixa preencher o encerramento uma vez, então o histórico não é reescrito. A localização é declarada pelo navegador (não verificada) e é descartada se o usuário desligar a geolocalização.
 
-**De onde vêm as sugestões do painel de BI?**
+**De onde vêm as sugestões da página de Relatórios?**
 De regras determinísticas sobre o razão do próprio usuário (`insights.rules.ts`): saídas maiores que entradas, quantos dias o saldo cobre no ritmo atual, concentração das saídas em uma pessoa, saída muito acima da média e devoluções. As somas são feitas em SQL a partir de `entries` e a regra é uma função pura, testada sem banco. Não é IA nem aconselhamento financeiro; a página diz isso. Evoluções naturais: metas, categorias e alertas por e-mail.
 
 **Como trocaria o provedor de e-mail/pagamento?**

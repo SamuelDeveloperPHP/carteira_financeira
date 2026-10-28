@@ -3,7 +3,7 @@ import * as OTPAuth from "otpauth";
 
 /*
  * Fluxo do cliente, pela interface, com navegador real:
- *   cadastro -> 2FA -> adicionar saldo -> saldo insuficiente -> transferência
+ *   cadastro -> 2FA -> relatórios (página inicial) -> carteira -> adicionar saldo -> saldo insuficiente -> transferência
  *   -> notificação -> devolução -> aviso da devolução -> F5 e rotas protegidas.
  * Duas contas novas por execução (e-mails únicos), cada uma em seu contexto
  * de navegador (cookies separados).
@@ -48,8 +48,11 @@ async function signUpAndEnter(browser: Browser, name: string, email: string): Pr
   await page.locator("input[autocomplete=one-time-code]").fill(totp(secret));
   await page.getByRole("button", { name: "Confirmar acesso" }).click();
 
-  await expect(page).toHaveURL(/\/carteira$/);
+  // Depois do login o cliente cai em Relatórios; a carteira é um clique no menu.
+  await expect(page).toHaveURL(/\/relatorios$/);
   await page.getByRole("button", { name: "Já guardei os códigos" }).click();
+  await page.locator(".sidebar").getByRole("link", { name: "Minha carteira" }).click();
+  await expect(page).toHaveURL(/\/carteira$/);
   return page;
 }
 
@@ -131,9 +134,9 @@ test("cliente: cadastro, saldo, transferência, notificação e devolução", as
     await expect(ana.locator(".notice-list")).toContainText("devolveu R$ 30,00");
   });
 
-  await test.step("o painel de BI reflete as movimentações", async () => {
-    await ana.locator(".sidebar").getByRole("link", { name: "Painel de BI" }).click();
-    await expect(ana).toHaveURL(/\/bi$/);
+  await test.step("os relatórios refletem as movimentações", async () => {
+    await ana.locator(".sidebar").getByRole("link", { name: "Relatórios" }).click();
+    await expect(ana).toHaveURL(/\/relatorios$/);
     await expect(ana.locator(".metric-grid")).toContainText("Entradas");
     await expect(ana.locator(".suggestions")).toContainText("Você recebeu devoluções");
   });
@@ -162,7 +165,7 @@ test("cliente: cadastro, saldo, transferência, notificação e devolução", as
 });
 
 test("rotas protegidas redirecionam quem não entrou", async ({ page }) => {
-  for (const path of ["/carteira", "/bi", "/perfil/bancario", "/contas"]) {
+  for (const path of ["/carteira", "/relatorios", "/perfil/bancario", "/contas"]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("heading", { name: "Acesse sua carteira" })).toBeVisible();

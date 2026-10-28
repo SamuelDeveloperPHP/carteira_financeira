@@ -1,6 +1,6 @@
 "use client";
 /*
- * Painel de BI: indicadores, gráficos e sugestões sobre as movimentações do
+ * Relatórios: indicadores, gráficos e sugestões sobre as movimentações do
  * próprio usuário, em uma página separada de "Minha carteira". Os números vêm
  * do servidor (GET /insights); as sugestões são regras automáticas e NÃO são
  * aconselhamento financeiro.
@@ -90,7 +90,7 @@ export default function BiPage() {
       <section className="panel">
         <div className="section-head">
           <div>
-            <h2>Painel de BI</h2>
+            <h2>Relatórios</h2>
             <p className="muted mb-0">Indicadores e sugestões sobre as suas movimentações.</p>
           </div>
           <div className="seg" role="group" aria-label="Período">

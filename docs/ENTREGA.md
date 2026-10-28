@@ -21,7 +21,7 @@
 docker compose --env-file .docker.env --profile test run --rm tests
 ```
 
-**Testes de tela (ponta a ponta).** Com o sistema no ar (`scripts/setup.ps1`), o Playwright percorre o fluxo do cliente em um navegador real, com duas contas novas: cadastro, 2FA (o código sai do segredo exibido na tela), adicionar saldo, saldo insuficiente, cancelar a confirmação, transferência, sino e notificação, devolução, aviso da devolução, painel de BI, trilha de acesso com localização, F5, logout e rotas protegidas.
+**Testes de tela (ponta a ponta).** Com o sistema no ar (`scripts/setup.ps1`), o Playwright percorre o fluxo do cliente em um navegador real, com duas contas novas: cadastro, 2FA (o código sai do segredo exibido na tela), adicionar saldo, saldo insuficiente, cancelar a confirmação, transferência, sino e notificação, devolução, aviso da devolução, relatórios, trilha de acesso com localização, F5, logout e rotas protegidas.
 
 ```powershell
 cd e2e
@@ -49,7 +49,7 @@ As imagens Docker compilam backend e frontend com TypeScript. A instalação das
 | CF-14 e CF-15 | Testes, Docker, documentação e roteiro |
 | CF-16 | Indicadores, conciliação e alertas visuais sob demanda |
 | CF-17 | Linha do tempo e posição em grade geográfica local no painel do master |
-| CF-19 | Painel de BI do usuário: indicadores, gráficos em SVG e sugestões automáticas, em página própria |
+| CF-19 | Relatórios do usuário (página inicial após o login): indicadores, gráficos em SVG e sugestões automáticas, em página própria |
 | CF-18 | Perfil: contas e chaves Pix (aprovação simulada), preferências, reconhecimento facial na recuperação de senha, trilha de acesso com mapas Leaflet |
 
 A aplicação entregue usa `frontend/` e `backend/`; o template visual de partida (Velzon) foi removido por não ser usado. Não há dependência de PHP/Apache/WAMP para executar os containers.

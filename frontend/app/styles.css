@@ -1056,7 +1056,7 @@ td.actions {
   border-bottom-color: var(--green);
 }
 
-/* Painel de BI: período, sugestões, gráficos */
+/* Relatórios: período, sugestões, gráficos */
 .seg {
   display: inline-flex;
   border: 1px solid #a6b7c4;
