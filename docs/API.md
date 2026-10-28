@@ -41,6 +41,7 @@ POST exige `Origin: http://localhost:3080`, `Content-Type: application/json` e `
 | POST `/settings/face/disable` | `password` | Usuário; apaga o modelo facial |
 | GET `/access` | `page` | Usuário; trilha de acesso (10 por página): `startedAt`, `endedAt`, `endReason`, `durationSeconds`, `ip`, `device`, `location`, `current` |
 | GET `/access/map` | — | Usuário; até 200 acessos com coordenadas (mapa geral) |
+| GET `/insights` | `period` (`30`, `90` ou `365`; padrão 90) | Usuário; BI da própria carteira: `summary`, `byKind`, `series` (por dia, semana ou mês), `counterparts` e `suggestions` (regras automáticas) |
 | GET `/admin/users` | `email` (nome ou e-mail), `page` | Master; 20 itens por página |
 | GET `/admin/users/:id/statement` | `page` | Master |
 | GET `/admin/events` | `userId`, `action`, `outcome`, `ip`, `from`, `to`, `page` | Master; 30 itens por página |

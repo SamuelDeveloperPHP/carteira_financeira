@@ -974,7 +974,7 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
         assert.equal((await call("/settings", "GET", undefined, d.cookie)).data.faceEnabled, true);
         // O modelo fica cifrado no banco e nenhuma rota o devolve.
         const tpl = (await owner.query("SELECT template FROM face_templates WHERE user_id=$1", [d.id])).rows[0].template;
-        assert(!tpl.includes("0.") && tpl.split(".").length === 3);
+        assert(/^[0-9a-f]+\.[0-9a-f]{32}\.[0-9a-f]+$/.test(tpl) && !tpl.includes("[") && !tpl.includes("\""));
         assert(!JSON.stringify((await call("/settings", "GET", undefined, d.cookie)).data).includes(tpl));
 
         const sent = [];
@@ -998,6 +998,40 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
         assert.equal(denied.rowCount, 1);
       }
     );
+    await t.test("BI: totais, séries e sugestões batem com o razão do usuário", async () => {
+      const x = await account("BiUm"), y = await account("BiDois");
+      await wallet.deposit(x.email, 10000, `bi-${suffix}`, ctx);
+      assert.equal((await transfer(x, y, 3000)).status, 201);
+      const insights = (u, q = "") => call(`/insights${q}`, "GET", undefined, u.cookie);
+      const mine = (await insights(x)).data;
+      assert.equal(mine.period, 90);
+      assert.equal(mine.summary.income, 10000);
+      assert.equal(mine.summary.expense, 3000);
+      assert.equal(mine.summary.net, 7000);
+      assert.equal(mine.summary.movements, 2);
+      assert.equal(mine.balance, 7000);
+      assert.equal(mine.byKind.find(k => k.id === "transfer_out").total, 3000);
+      assert.equal(mine.byKind.find(k => k.id === "deposit").count, 1);
+      // A série soma o mesmo que o resumo e termina no saldo atual.
+      assert.equal(mine.series.reduce((s, p) => s + p.income, 0), 10000);
+      assert.equal(mine.series.reduce((s, p) => s + p.expense, 0), 3000);
+      assert.equal(mine.series.at(-1).balance, 7000);
+      assert.equal(mine.counterparts.length, 1);
+      assert.equal(mine.counterparts[0].name, "BiDois");
+      assert.equal(mine.counterparts[0].sent, 3000);
+      assert(Array.isArray(mine.suggestions) && mine.suggestions.some(s => s.id === "positive-net"));
+      // Cada usuário vê só o próprio razão.
+      const theirs = (await insights(y)).data;
+      assert.equal(theirs.summary.income, 3000);
+      assert.equal(theirs.summary.expense, 0);
+      assert.equal(theirs.counterparts[0].received, 3000);
+      // Períodos válidos mudam o agrupamento; inválidos e o master são recusados.
+      assert.equal((await insights(x, "?period=30")).data.bucket, "day");
+      assert.equal((await insights(x, "?period=365")).data.bucket, "month");
+      assert.equal((await insights(x, "?period=7")).status, 400);
+      assert.equal((await insights(master)).status, 403);
+      assert.equal((await call("/insights", "GET")).status, 401);
+    });
     await t.test("logout revoga a sessão no servidor", async () => {
       assert.equal(
         (await call("/auth/logout", "POST", {}, a.cookie)).status,

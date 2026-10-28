@@ -1055,3 +1055,95 @@ td.actions {
   font-weight: 600;
   border-bottom-color: var(--green);
 }
+
+/* Painel de BI: período, sugestões, gráficos */
+.seg {
+  display: inline-flex;
+  border: 1px solid #a6b7c4;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.seg button {
+  border: 0;
+  background: #fff;
+  padding: 8px 16px;
+  color: var(--ink);
+}
+.seg button + button {
+  border-left: 1px solid #a6b7c4;
+}
+.seg button.active {
+  background: var(--green);
+  color: #fff;
+  font-weight: 600;
+}
+.metric-value.pos {
+  color: #0f5a47;
+}
+.metric-value.neg {
+  color: #8a2a22;
+}
+.suggestions {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+.suggestions li {
+  border: 1px solid var(--line);
+  border-left-width: 5px;
+  border-radius: 8px;
+  padding: 12px 16px;
+  background: #f6f9fa;
+}
+.suggestions li.warning {
+  border-left-color: #b37b18;
+  background: #fff9ec;
+}
+.suggestions li.success {
+  border-left-color: var(--green);
+  background: #f0f7f4;
+}
+.suggestions li.info {
+  border-left-color: #155e86;
+}
+.suggestion-level {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.chart-table {
+  margin-top: 14px;
+}
+.hbars {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 14px;
+}
+.hbars-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.hbars-track {
+  height: 10px;
+  border-radius: 6px;
+  background: #e9eef2;
+  margin: 6px 0 2px;
+  overflow: hidden;
+}
+.hbars-track span {
+  display: block;
+  height: 100%;
+  border-radius: 6px;
+}
