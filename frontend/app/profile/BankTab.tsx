@@ -45,7 +45,11 @@ const KEY_TYPES: Record<PixKey["type"], string> = {
   phone: "Celular",
   evp: "Chave aleatória",
 };
-const ACCOUNT_TYPES = { checking: "Conta corrente", savings: "Poupança", payment: "Conta de pagamento" };
+const ACCOUNT_TYPES = {
+  checking: "Conta corrente",
+  savings: "Poupança",
+  payment: "Conta de pagamento",
+};
 const STATUS = {
   approved: ["Aprovada", "ok"],
   pending: ["Aguardando confirmação", "wait"],
@@ -61,7 +65,8 @@ const PLACEHOLDER: Record<PixKey["type"], string> = {
 
 /** Exibe a chave de forma legível (CPF/CNPJ/celular formatados). */
 function showKey(k: PixKey) {
-  if (k.type === "phone") return k.value.replace(/^\+55(\d{2})(\d{5})(\d{4})$/, "+55 ($1) $2-$3");
+  if (k.type === "phone")
+    return k.value.replace(/^\+55(\d{2})(\d{5})(\d{4})$/, "+55 ($1) $2-$3");
   return maskPixKey(k.type, k.value);
 }
 
@@ -77,10 +82,20 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
   const [banks, setBanks] = useState<Bank[]>([]);
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [form, setForm] = useState({ bankCode: "", agency: "", accountNumber: "", accountType: "checking", holderDocument: "" });
+  const [form, setForm] = useState({
+    bankCode: "",
+    agency: "",
+    accountNumber: "",
+    accountType: "checking",
+    holderDocument: "",
+  });
   // Chave em edição (uma por vez): o valor digitado leva a máscara do tipo.
-  const [editing, setEditing] = useState<{ id: string; value: string } | null>(null);
-  const [keyForm, setKeyForm] = useState<Record<string, { type: PixKey["type"]; value: string }>>({});
+  const [editing, setEditing] = useState<{ id: string; value: string } | null>(
+    null
+  );
+  const [keyForm, setKeyForm] = useState<
+    Record<string, { type: PixKey["type"]; value: string }>
+  >({});
 
   async function load() {
     const [b, a] = await Promise.all([
@@ -99,7 +114,11 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
   function addAccount(e: FormEvent) {
     e.preventDefault();
     run(async () => {
-      const r = await api<{ message: string }>("/banking/accounts", "POST", form);
+      const r = await api<{ message: string }>(
+        "/banking/accounts",
+        "POST",
+        form
+      );
       setForm({ ...form, agency: "", accountNumber: "" });
       await load();
       notify("success", r.message);
@@ -114,7 +133,10 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
         confirmText: "Excluir",
       });
       if (!ok) return;
-      const r = await api<{ message: string }>(`/banking/accounts/${a.id}`, "DELETE");
+      const r = await api<{ message: string }>(
+        `/banking/accounts/${a.id}`,
+        "DELETE"
+      );
       await load();
       notify("success", r.message);
     });
@@ -129,7 +151,11 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
       confirmText: "Confirmar chave",
     });
     if (code === null) return false;
-    const r = await api<{ message: string }>(`/banking/pix-keys/${keyId}/confirm`, "POST", { code });
+    const r = await api<{ message: string }>(
+      `/banking/pix-keys/${keyId}/confirm`,
+      "POST",
+      { code }
+    );
     notify("success", r.message);
     return true;
   }
@@ -154,9 +180,14 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
 
   function resend(k: PixKey) {
     run(async () => {
-      const r = await api<{ message: string }>(`/banking/pix-keys/${k.id}/resend`, "POST", {});
+      const r = await api<{ message: string }>(
+        `/banking/pix-keys/${k.id}/resend`,
+        "POST",
+        {}
+      );
       notify("info", r.message);
-      if (await confirmWithCode(k.id, "Informe o novo código enviado.")) await load();
+      if (await confirmWithCode(k.id, "Informe o novo código enviado."))
+        await load();
     });
   }
 
@@ -164,9 +195,14 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
   function saveEdit(k: PixKey) {
     if (!editing) return;
     run(async () => {
-      const r = await api<{ status: string; message: string }>(`/banking/pix-keys/${k.id}`, "PATCH", { value: editing.value });
+      const r = await api<{ status: string; message: string }>(
+        `/banking/pix-keys/${k.id}`,
+        "PATCH",
+        { value: editing.value }
+      );
       setEditing(null);
-      if (r.status === "pending") await confirmWithCode(k.id, r.message).catch(fail);
+      if (r.status === "pending")
+        await confirmWithCode(k.id, r.message).catch(fail);
       else notify(r.status === "approved" ? "success" : "warning", r.message);
       await load();
     });
@@ -180,7 +216,10 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
         confirmText: "Excluir",
       });
       if (!ok) return;
-      const r = await api<{ message: string }>(`/banking/pix-keys/${k.id}`, "DELETE");
+      const r = await api<{ message: string }>(
+        `/banking/pix-keys/${k.id}`,
+        "DELETE"
+      );
       await load();
       notify("success", r.message);
     });
@@ -191,13 +230,18 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
       <section className="panel">
         <h2>Adicionar conta bancária</h2>
         <p className="muted">
-          Você pode cadastrar contas em mais de um banco. O CPF/CNPJ do titular é usado para validar as chaves Pix
-          desta conta.
+          Você pode cadastrar contas em mais de um banco. O CPF/CNPJ do titular
+          é usado para validar as chaves Pix desta conta.
         </p>
         <form onSubmit={addAccount} className="bank-form">
           <label className="field">
             <span className="form-label d-block">Banco</span>
-            <select className="form-control" required value={form.bankCode} onChange={e => setForm({ ...form, bankCode: e.target.value })}>
+            <select
+              className="form-control"
+              required
+              value={form.bankCode}
+              onChange={e => setForm({ ...form, bankCode: e.target.value })}
+            >
               <option value="">Selecione…</option>
               {banks.map(b => (
                 <option key={b.code} value={b.code}>
@@ -208,15 +252,38 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
           </label>
           <label className="field">
             <span className="form-label d-block">Agência</span>
-            <input className="form-control" required inputMode="numeric" maxLength={5} placeholder="0001" value={form.agency} onChange={e => setForm({ ...form, agency: e.target.value.replace(/\D/g, "") })} />
+            <input
+              className="form-control"
+              required
+              inputMode="numeric"
+              maxLength={5}
+              placeholder="0001"
+              value={form.agency}
+              onChange={e =>
+                setForm({ ...form, agency: e.target.value.replace(/\D/g, "") })
+              }
+            />
           </label>
           <label className="field">
             <span className="form-label d-block">Conta (com dígito)</span>
-            <input className="form-control" required maxLength={14} placeholder="123456-7" value={form.accountNumber} onChange={e => setForm({ ...form, accountNumber: e.target.value })} />
+            <input
+              className="form-control"
+              required
+              maxLength={14}
+              placeholder="123456-7"
+              value={form.accountNumber}
+              onChange={e =>
+                setForm({ ...form, accountNumber: e.target.value })
+              }
+            />
           </label>
           <label className="field">
             <span className="form-label d-block">Tipo</span>
-            <select className="form-control" value={form.accountType} onChange={e => setForm({ ...form, accountType: e.target.value })}>
+            <select
+              className="form-control"
+              value={form.accountType}
+              onChange={e => setForm({ ...form, accountType: e.target.value })}
+            >
               {Object.entries(ACCOUNT_TYPES).map(([id, label]) => (
                 <option key={id} value={id}>
                   {label}
@@ -226,7 +293,20 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
           </label>
           <label className="field">
             <span className="form-label d-block">CPF/CNPJ do titular</span>
-            <input className="form-control" required maxLength={18} inputMode="numeric" placeholder="000.000.000-00 ou 00.000.000/0000-00" value={form.holderDocument} onChange={e => setForm({ ...form, holderDocument: maskDocument(e.target.value) })} />
+            <input
+              className="form-control"
+              required
+              maxLength={18}
+              inputMode="numeric"
+              placeholder="000.000.000-00 ou 00.000.000/0000-00"
+              value={form.holderDocument}
+              onChange={e =>
+                setForm({
+                  ...form,
+                  holderDocument: maskDocument(e.target.value),
+                })
+              }
+            />
           </label>
           <button className="btn btn-primary" disabled={busy}>
             Cadastrar conta
@@ -237,7 +317,9 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
       {loaded && accounts.length === 0 && (
         <section className="panel empty">
           <h3>Nenhuma conta cadastrada</h3>
-          <p className="muted">Cadastre uma conta acima para registrar chaves Pix.</p>
+          <p className="muted">
+            Cadastre uma conta acima para registrar chaves Pix.
+          </p>
         </section>
       )}
 
@@ -252,10 +334,16 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
                   {a.bankName} <span className="muted">({a.bankCode})</span>
                 </h2>
                 <p className="muted mb-0">
-                  Ag. {a.agency} · Conta {a.accountNumber} · {ACCOUNT_TYPES[a.accountType]} · Titular {maskDocument(a.holderDocument)}
+                  Ag. {a.agency} · Conta {a.accountNumber} ·{" "}
+                  {ACCOUNT_TYPES[a.accountType]} · Titular{" "}
+                  {maskDocument(a.holderDocument)}
                 </p>
               </div>
-              <button className="btn btn-sm btn-outline-secondary" disabled={busy} onClick={() => removeAccount(a)}>
+              <button
+                className="btn btn-sm btn-outline-secondary"
+                disabled={busy}
+                onClick={() => removeAccount(a)}
+              >
                 Excluir conta
               </button>
             </div>
@@ -292,10 +380,17 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
                               autoFocus
                               aria-label={`Novo valor da chave ${KEY_TYPES[k.type]}`}
                               type={k.type === "email" ? "email" : "text"}
-                              inputMode={k.type === "email" ? "email" : "numeric"}
+                              inputMode={
+                                k.type === "email" ? "email" : "numeric"
+                              }
                               maxLength={KEY_MAX_LENGTH[k.type]}
                               value={editing.value}
-                              onChange={e => setEditing({ id: k.id, value: maskPixKey(k.type, e.target.value) })}
+                              onChange={e =>
+                                setEditing({
+                                  id: k.id,
+                                  value: maskPixKey(k.type, e.target.value),
+                                })
+                              }
                               onKeyDown={e => {
                                 if (e.key === "Enter") saveEdit(k);
                                 if (e.key === "Escape") setEditing(null);
@@ -306,48 +401,87 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
                           )}
                         </td>
                         <td>
-                          <span className={`status ${STATUS[k.status][1]}`}>{STATUS[k.status][0]}</span>
-                          {k.reason && <div className="muted small">{k.reason}</div>}
+                          <span className={`status ${STATUS[k.status][1]}`}>
+                            {STATUS[k.status][0]}
+                          </span>
+                          {k.reason && (
+                            <div className="muted small">{k.reason}</div>
+                          )}
                         </td>
                         <td>{k.protocol}</td>
                         <td>{dateTime(k.createdAt)}</td>
                         <td className="actions">
                           {editing?.id === k.id ? (
                             <>
-                              <button className="btn btn-sm btn-primary" disabled={busy || !editing.value} onClick={() => saveEdit(k)}>
+                              <button
+                                className="btn btn-sm btn-primary"
+                                disabled={busy || !editing.value}
+                                onClick={() => saveEdit(k)}
+                              >
                                 Salvar
                               </button>{" "}
-                              <button className="btn btn-sm btn-outline-secondary" disabled={busy} onClick={() => setEditing(null)}>
+                              <button
+                                className="btn btn-sm btn-outline-secondary"
+                                disabled={busy}
+                                onClick={() => setEditing(null)}
+                              >
                                 Cancelar
                               </button>
                             </>
                           ) : (
-                          <>
-                          {k.status === "pending" && (
                             <>
-                              <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => run(async () => { if (await confirmWithCode(k.id, "Informe o código enviado ao contato da chave.")) await load(); })}>
-                                Informar código
-                              </button>{" "}
-                              <button className="btn btn-sm btn-outline-secondary" disabled={busy} onClick={() => resend(k)}>
-                                Reenviar
-                              </button>{" "}
-                            </>
-                          )}
-                          {k.type !== "evp" && (
-                            <>
+                              {k.status === "pending" && (
+                                <>
+                                  <button
+                                    className="btn btn-sm btn-primary"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      run(async () => {
+                                        if (
+                                          await confirmWithCode(
+                                            k.id,
+                                            "Informe o código enviado ao contato da chave."
+                                          )
+                                        )
+                                          await load();
+                                      })
+                                    }
+                                  >
+                                    Informar código
+                                  </button>{" "}
+                                  <button
+                                    className="btn btn-sm btn-outline-secondary"
+                                    disabled={busy}
+                                    onClick={() => resend(k)}
+                                  >
+                                    Reenviar
+                                  </button>{" "}
+                                </>
+                              )}
+                              {k.type !== "evp" && (
+                                <>
+                                  <button
+                                    className="btn btn-sm btn-outline-secondary"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      setEditing({
+                                        id: k.id,
+                                        value: showKey(k).replace(/^\+55 /, ""),
+                                      })
+                                    }
+                                  >
+                                    Editar
+                                  </button>{" "}
+                                </>
+                              )}
                               <button
                                 className="btn btn-sm btn-outline-secondary"
                                 disabled={busy}
-                                onClick={() => setEditing({ id: k.id, value: showKey(k).replace(/^\+55 /, "") })}
+                                onClick={() => removeKey(k)}
                               >
-                                Editar
-                              </button>{" "}
+                                Excluir
+                              </button>
                             </>
-                          )}
-                          <button className="btn btn-sm btn-outline-secondary" disabled={busy} onClick={() => removeKey(k)}>
-                            Excluir
-                          </button>
-                          </>
                           )}
                         </td>
                       </tr>
@@ -366,7 +500,12 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
                   onChange={e => {
                     const type = e.target.value as PixKey["type"];
                     // CPF/CNPJ já vêm com o documento do titular (a chave tem de ser ele).
-                    const value = type === "cpf" && a.holderDocument.length === 11 ? maskDocument(a.holderDocument) : type === "cnpj" && a.holderDocument.length === 14 ? maskDocument(a.holderDocument) : "";
+                    const value =
+                      type === "cpf" && a.holderDocument.length === 11
+                        ? maskDocument(a.holderDocument)
+                        : type === "cnpj" && a.holderDocument.length === 14
+                          ? maskDocument(a.holderDocument)
+                          : "";
                     setKeyForm({ ...keyForm, [a.id]: { type, value } });
                   }}
                 >
@@ -388,11 +527,21 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
                     placeholder={PLACEHOLDER[f.type]}
                     maxLength={KEY_MAX_LENGTH[f.type]}
                     value={f.value}
-                    onChange={e => setKeyForm({ ...keyForm, [a.id]: { ...f, value: maskPixKey(f.type, e.target.value) } })}
+                    onChange={e =>
+                      setKeyForm({
+                        ...keyForm,
+                        [a.id]: {
+                          ...f,
+                          value: maskPixKey(f.type, e.target.value),
+                        },
+                      })
+                    }
                   />
                 </label>
               ) : (
-                <p className="muted pix-note">A chave aleatória é gerada pelo sistema.</p>
+                <p className="muted pix-note">
+                  A chave aleatória é gerada pelo sistema.
+                </p>
               )}
               <button className="btn btn-primary" disabled={busy || full}>
                 {full ? "Limite de chaves atingido" : "Registrar chave"}
@@ -403,9 +552,11 @@ export function BankTab({ fail }: { fail: (e: unknown) => void }) {
       })}
 
       <p className="footer-note">
-        Registro de chaves <strong>simulado</strong>: o fluxo segue o do arranjo Pix (validação do formato, posse do
-        contato e unicidade da chave), mas nenhum dado é enviado ao DICT do Banco Central. Para trocar a simulação pelo
-        diretório real basta implementar a interface <code>PixDirectoryProvider</code>.
+        Registro de chaves <strong>simulado</strong>: o fluxo segue o do arranjo
+        Pix (validação do formato, posse do contato e unicidade da chave), mas
+        nenhum dado é enviado ao DICT do Banco Central. Para trocar a simulação
+        pelo diretório real basta implementar a interface{" "}
+        <code>PixDirectoryProvider</code>.
       </p>
     </>
   );

@@ -26,8 +26,12 @@ export function duration(seconds: number): string {
 
 /** Escapa texto que vira HTML (tooltip do Leaflet): o aparelho/IP vêm do cliente e não são confiáveis. */
 export const esc = (value: unknown) =>
-  String(value ?? "").replace(/[&<>"']/g, c =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!
+  String(value ?? "").replace(
+    /[&<>"']/g,
+    c =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ]!
   );
 
 // Tipos da API usados pelas abas.

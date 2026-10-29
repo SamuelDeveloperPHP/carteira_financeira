@@ -310,6 +310,14 @@ Senha, token, códigos TOTP, chaves de recuperação e segredo do autenticador n
 
 Política desta demonstração: usar dados fictícios; manter dados somente durante o período de avaliação, com prazo operacional máximo proposto de 30 dias. A remoção ao encerrar a demonstração exige procedimento explícito do responsável sobre o volume, pois a aplicação não permite apagar a trilha. Não há expurgo automático implementado. Produção exige política própria de retenção, controles de acesso, backup, gestão de chaves e operação.
 
+## Banco, imagens e gateway: decisões de desempenho e endurecimento
+
+- **Índice do extrato:** `entries(user_id, id DESC)` (migração 005). O extrato e os relatórios filtram os lançamentos de um usuário; sem o índice a consulta varria a tabela inteira, que cresce com todos os movimentos do sistema.
+- **Limpeza do limite de tentativas:** as janelas vencidas de `rate_limits` são apagadas de forma oportunista (em média a cada 200 contagens, apoiada no índice em `expires_at`), sem agendador. Uma falha na limpeza nunca afeta a requisição.
+- **Imagem de produção sem testes:** o `Dockerfile` da API tem o estágio `runtime` (só código compilado, dependências de execução e migrações) e o estágio `test` (runtime + `test/`), usado apenas pelo perfil `test` do compose.
+- **Frontend somente leitura:** o container `web` roda com sistema de arquivos `read_only`, `tmpfs` em `/tmp`, sem capacidades Linux e sem novos privilégios, como a API.
+- **CSP no gateway:** o HTML do Next sai com `Content-Security-Policy` restrita (`default-src 'self'`, sem `object`, sem frames, tiles só do OpenStreetMap). `'unsafe-inline'` permanece em script/style por causa da hidratação do Next e de Leaflet/SweetAlert2; trocar por nonce exigiria renderização dinâmica. HSTS não é enviado em HTTP; deve ser ligado junto com o HTTPS.
+
 ## Limitações deliberadas
 
 - Não movimenta dinheiro real, não integra bancos e não oferece saques.

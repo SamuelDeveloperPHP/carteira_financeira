@@ -39,12 +39,21 @@ export class AdminController {
     @Query() q: PageQueryDto,
     @Req() req: AppRequest
   ) {
-    return this.admin.statement(id, q, sessionOf(req).user_id, auditContext(req));
+    return this.admin.statement(
+      id,
+      q,
+      sessionOf(req).user_id,
+      auditContext(req)
+    );
   }
 
   @Get("events")
   events(@Query() q: EventsQueryDto, @Req() req: AppRequest) {
-    return this.admin.searchEvents(q, sessionOf(req).user_id, auditContext(req));
+    return this.admin.searchEvents(
+      q,
+      sessionOf(req).user_id,
+      auditContext(req)
+    );
   }
 
   @Get("movements/:id")

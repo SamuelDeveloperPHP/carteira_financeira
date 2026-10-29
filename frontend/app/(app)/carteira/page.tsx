@@ -12,7 +12,11 @@ import { useSession } from "../../session";
 export default function WalletPage() {
   const { user, busy, work } = useSession();
   const [balance, setBalance] = useState(0),
-    [statement, setStatement] = useState<List<Movement>>({ items: [], page: 1, hasMore: false }),
+    [statement, setStatement] = useState<List<Movement>>({
+      items: [],
+      page: 1,
+      hasMore: false,
+    }),
     [recipient, setRecipient] = useState(""),
     [amount, setAmount] = useState(""),
     [topUp, setTopUp] = useState("");
@@ -125,82 +129,86 @@ export default function WalletPage() {
     });
   }
   return (
-              <>
-                <div className="wallet-grid">
-                  <section className="panel balance-panel">
-                    <h2>Saldo disponível</h2>
-                    <div className="balance">{cash(balance)}</div>
-                    <span className="tag success">
-                      Carteira em reais · Simulação
-                    </span>
-                    {/* Saldo inicial: o próprio usuário adiciona valor simulado à sua carteira. */}
-                    <form className="balance-note" onSubmit={addBalance}>
-                      <h3>Adicionar saldo</h3>
-                      <p className="muted small">
-                        Valor simulado, até R$ 10.000,00 por adição. Você também
-                        pode receber transferências de outros usuários.
-                      </p>
-                      <Field label="Valor em reais">
-                        <input
-                          className="form-control"
-                          inputMode="decimal"
-                          placeholder="0,00"
-                          required
-                          value={topUp}
-                          onChange={e => setTopUp(e.target.value)}
-                        />
-                      </Field>
-                      <button className="btn btn-primary" disabled={busy}>
-                        {busy ? "Processando…" : "Adicionar saldo"}
-                      </button>
-                    </form>
-                  </section>
-                  <section className="panel">
-                    <h2>Fazer uma transferência</h2>
-                    <p className="muted small">
-                      Envie para outra pessoa cadastrada nesta carteira.
-                    </p>
-                    <form onSubmit={transfer}>
-                      <Field label="E-mail do destinatário">
-                        <input
-                          className="form-control"
-                          type="email"
-                          required
-                          value={recipient}
-                          onChange={e => setRecipient(e.target.value)}
-                        />
-                      </Field>
-                      <Field label="Valor em reais">
-                        <input
-                          className="form-control"
-                          inputMode="decimal"
-                          placeholder="0,00"
-                          required
-                          value={amount}
-                          onChange={e => setAmount(e.target.value)}
-                        />
-                      </Field>
-                      <div className="inline-actions">
-                        <button className="btn btn-primary" disabled={busy}>
-                          {busy ? "Processando…" : "Transferir"}
-                        </button>
-                      </div>
-                    </form>
-                  </section>
-                </div>
-                <section className="panel">
-                  <div className="section-head">
-                    <h2>Extrato da carteira</h2>
-                    <button
-                      className="btn btn-sm btn-outline-secondary"
-                      disabled={busy}
-                      onClick={() => work(() => loadWallet(statement.page))}
-                    >
-                      Atualizar
-                    </button>
-                  </div>
-                  <Transactions statement={statement} busy={busy} userId={user?.id} onRefund={refund} onPage={p => work(() => loadWallet(p))} />
-                </section>
-              </>
+    <>
+      <div className="wallet-grid">
+        <section className="panel balance-panel">
+          <h2>Saldo disponível</h2>
+          <div className="balance">{cash(balance)}</div>
+          <span className="tag success">Carteira em reais · Simulação</span>
+          {/* Saldo inicial: o próprio usuário adiciona valor simulado à sua carteira. */}
+          <form className="balance-note" onSubmit={addBalance}>
+            <h3>Adicionar saldo</h3>
+            <p className="muted small">
+              Valor simulado, até R$ 10.000,00 por adição. Você também pode
+              receber transferências de outros usuários.
+            </p>
+            <Field label="Valor em reais">
+              <input
+                className="form-control"
+                inputMode="decimal"
+                placeholder="0,00"
+                required
+                value={topUp}
+                onChange={e => setTopUp(e.target.value)}
+              />
+            </Field>
+            <button className="btn btn-primary" disabled={busy}>
+              {busy ? "Processando…" : "Adicionar saldo"}
+            </button>
+          </form>
+        </section>
+        <section className="panel">
+          <h2>Fazer uma transferência</h2>
+          <p className="muted small">
+            Envie para outra pessoa cadastrada nesta carteira.
+          </p>
+          <form onSubmit={transfer}>
+            <Field label="E-mail do destinatário">
+              <input
+                className="form-control"
+                type="email"
+                required
+                value={recipient}
+                onChange={e => setRecipient(e.target.value)}
+              />
+            </Field>
+            <Field label="Valor em reais">
+              <input
+                className="form-control"
+                inputMode="decimal"
+                placeholder="0,00"
+                required
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+              />
+            </Field>
+            <div className="inline-actions">
+              <button className="btn btn-primary" disabled={busy}>
+                {busy ? "Processando…" : "Transferir"}
+              </button>
+            </div>
+          </form>
+        </section>
+      </div>
+      <section className="panel">
+        <div className="section-head">
+          <h2>Extrato da carteira</h2>
+          <button
+            className="btn btn-sm btn-outline-secondary"
+            disabled={busy}
+            onClick={() => work(() => loadWallet(statement.page))}
+          >
+            Atualizar
+          </button>
+        </div>
+        <Transactions
+          statement={statement}
+          busy={busy}
+          userId={user?.id}
+          onRefund={refund}
+          onPage={p => work(() => loadWallet(p))}
+        />
+      </section>
+    </>
   );
 }

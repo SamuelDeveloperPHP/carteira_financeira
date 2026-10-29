@@ -1,4 +1,10 @@
-import { IsIn, IsOptional, IsString, Matches, MaxLength } from "class-validator";
+import {
+  IsIn,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+} from "class-validator";
 import { Transform } from "class-transformer";
 import { BANKS } from "../banks.catalog";
 import { PIX_KEY_TYPES } from "../pix-key.rules";
@@ -11,12 +17,16 @@ export class CreateBankAccountDto {
   @IsIn(BANKS.map(b => b.code), { message: "Banco inválido." })
   bankCode!: string;
   @Transform(trimmed)
-  @Matches(/^[0-9]{4,5}$/, { message: "Agência inválida (4 ou 5 dígitos, sem dígito verificador)." })
+  @Matches(/^[0-9]{4,5}$/, {
+    message: "Agência inválida (4 ou 5 dígitos, sem dígito verificador).",
+  })
   agency!: string;
   @Transform(trimmed)
   @Matches(/^[0-9]{3,12}-?[0-9Xx]?$/, { message: "Número da conta inválido." })
   accountNumber!: string;
-  @IsIn(["checking", "savings", "payment"], { message: "Tipo de conta inválido." })
+  @IsIn(["checking", "savings", "payment"], {
+    message: "Tipo de conta inválido.",
+  })
   accountType!: "checking" | "savings" | "payment";
   @IsString({ message: "CPF ou CNPJ do titular inválido." })
   @MaxLength(18, { message: "CPF ou CNPJ do titular inválido." })

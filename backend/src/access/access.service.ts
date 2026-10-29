@@ -30,7 +30,11 @@ export class AccessService {
 
   async map(userId: string, currentHash: string) {
     await this.repo.closeExpired(userId);
-    const rows = await this.repo.withCoordinates(userId, currentHash, ACCESS_MAP_LIMIT);
+    const rows = await this.repo.withCoordinates(
+      userId,
+      currentHash,
+      ACCESS_MAP_LIMIT
+    );
     return { items: rows.map(r => this.view(r)), limit: ACCESS_MAP_LIMIT };
   }
 

@@ -49,7 +49,9 @@ export class LedgerService {
     // 1) Bloqueio em ORDEM FIXA (ids ordenados). Se A->B e B->A acontecerem ao
     //    mesmo tempo, ambas bloqueiam na mesma ordem e uma espera a outra;
     //    ordens diferentes causariam DEADLOCK (cada uma esperando a outra).
-    const ids = ([p.senderId, p.recipientId].filter(Boolean) as string[]).sort();
+    const ids = (
+      [p.senderId, p.recipientId].filter(Boolean) as string[]
+    ).sort();
     const balances = await this.ledger.lockWallets(tx, ids);
     if (balances.size !== ids.length)
       throw new NotFoundException("Carteira não encontrada.");
@@ -78,7 +80,13 @@ export class LedgerService {
     for (const userId of ids) {
       const delta = userId === p.senderId ? -p.amount : p.amount;
       const balanceAfter = await this.ledger.applyDelta(tx, userId, delta);
-      await this.ledger.insertEntry(tx, movement.id, userId, delta, balanceAfter);
+      await this.ledger.insertEntry(
+        tx,
+        movement.id,
+        userId,
+        delta,
+        balanceAfter
+      );
     }
     return movement;
   }

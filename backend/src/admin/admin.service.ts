@@ -43,7 +43,12 @@ export class AdminService {
     };
   }
 
-  async statement(id: string, q: { page?: number }, actor: string, ctx: AuditContext) {
+  async statement(
+    id: string,
+    q: { page?: number },
+    actor: string,
+    ctx: AuditContext
+  ) {
     await this.audit.record("admin.statement.view", actor, id, ctx, {
       page: q.page ?? 1,
     });
@@ -52,13 +57,9 @@ export class AdminService {
 
   async searchEvents(q: EventsQueryDto, actor: string, ctx: AuditContext) {
     const page = q.page ?? 1;
-    await this.audit.record(
-      "admin.events.view",
-      actor,
-      q.userId || null,
-      ctx,
-      { filters: { ...q } }
-    );
+    await this.audit.record("admin.events.view", actor, q.userId || null, ctx, {
+      filters: { ...q },
+    });
     const rows = await this.events.search(
       {
         userId: q.userId,

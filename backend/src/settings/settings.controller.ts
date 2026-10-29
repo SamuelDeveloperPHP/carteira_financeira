@@ -2,7 +2,11 @@ import { Body, Controller, Get, Patch, Post, Req } from "@nestjs/common";
 import { Roles } from "../common/http/access.decorators";
 import { auditContext } from "../common/http/request-context";
 import { AppRequest, sessionOf } from "../common/http/request.types";
-import { DisableFaceDto, EnrollFaceDto, UpdateSettingsDto } from "./dto/settings.dto";
+import {
+  DisableFaceDto,
+  EnrollFaceDto,
+  UpdateSettingsDto,
+} from "./dto/settings.dto";
 import { FaceService } from "./face.service";
 import { SettingsService } from "./settings.service";
 

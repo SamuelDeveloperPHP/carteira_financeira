@@ -10,7 +10,8 @@ import { Access } from "../common/http/access.decorators";
 @Controller("health")
 export class HealthController {
   constructor(private readonly db: Database) {}
-  @Access("public") @Get()
+  @Access("public")
+  @Get()
   async health() {
     // Consulta mínima: se o banco estiver fora, a exceção vira 500 e o
     // orquestrador marca o container como não saudável.

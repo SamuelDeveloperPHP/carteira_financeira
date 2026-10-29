@@ -8,7 +8,8 @@ function fakePool({ failRollback = false } = {}) {
   const client = {
     query: async sql => {
       calls.push(sql);
-      if (sql === "ROLLBACK" && failRollback) throw new Error("connection lost");
+      if (sql === "ROLLBACK" && failRollback)
+        throw new Error("connection lost");
     },
     release: discard => calls.push(`release:${discard ?? false}`),
   };
@@ -30,13 +31,23 @@ test("commit quando o trabalho termina e conexão devolvida ao pool", async () =
 test("rollback quando o trabalho falha, preservando o erro original", async () => {
   const { db, calls } = build();
   const cause = new Error("saldo");
-  await assert.rejects(db.transaction(async () => { throw cause; }), e => e === cause);
+  await assert.rejects(
+    db.transaction(async () => {
+      throw cause;
+    }),
+    e => e === cause
+  );
   assert.deepEqual(calls, ["BEGIN", "ROLLBACK", "release:false"]);
 });
 
 test("se o próprio rollback falhar, o erro original continua visível e a conexão é descartada", async () => {
   const { db, calls } = build({ failRollback: true });
   const cause = new Error("causa raiz");
-  await assert.rejects(db.transaction(async () => { throw cause; }), e => e === cause);
+  await assert.rejects(
+    db.transaction(async () => {
+      throw cause;
+    }),
+    e => e === cause
+  );
   assert.deepEqual(calls, ["BEGIN", "ROLLBACK", "release:true"]);
 });

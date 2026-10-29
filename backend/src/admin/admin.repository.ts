@@ -24,8 +24,9 @@ export class AdminRepository {
   }
 
   async findMovement(id: string) {
-    return (await this.db.pool.query("SELECT * FROM movements WHERE id=$1", [id]))
-      .rows[0];
+    return (
+      await this.db.pool.query("SELECT * FROM movements WHERE id=$1", [id])
+    ).rows[0];
   }
 
   /** Lançamentos (partida dobrada) de um movimento: uma linha por carteira afetada. */

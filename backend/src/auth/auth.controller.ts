@@ -1,6 +1,10 @@
 import { Body, Controller, Get, Post, Req, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { FULL_SESSION_MINUTES, PARTIAL_SESSION_MINUTES, SESSION_COOKIE } from "../common/constants";
+import {
+  FULL_SESSION_MINUTES,
+  PARTIAL_SESSION_MINUTES,
+  SESSION_COOKIE,
+} from "../common/constants";
 import { Access } from "../common/http/access.decorators";
 import { AppRequest, sessionOf } from "../common/http/request.types";
 import { AuthService } from "./auth.service";
@@ -67,12 +71,14 @@ export class AuthController {
     return publicData;
   }
 
-  @Access("public") @Post("register")
+  @Access("public")
+  @Post("register")
   register(@Body() dto: RegisterDto, @Req() req: AppRequest) {
     return this.auth.register(dto, req);
   }
 
-  @Access("public") @Post("login")
+  @Access("public")
+  @Post("login")
   async login(
     @Body() dto: LoginDto,
     @Req() req: AppRequest,
@@ -81,17 +87,20 @@ export class AuthController {
     return this.withSession(await this.auth.login(dto, req), res);
   }
 
-  @Access("public") @Post("forgot-password")
+  @Access("public")
+  @Post("forgot-password")
   forgot(@Body() dto: ForgotPasswordDto, @Req() req: AppRequest) {
     return this.recovery.forgot(dto, req);
   }
 
-  @Access("public") @Post("reset-requirements")
+  @Access("public")
+  @Post("reset-requirements")
   resetRequirements(@Body() dto: ResetRequirementsDto, @Req() req: AppRequest) {
     return this.recovery.requirements(dto, req);
   }
 
-  @Access("public") @Post("reset-password")
+  @Access("public")
+  @Post("reset-password")
   reset(@Body() dto: ResetPasswordDto, @Req() req: AppRequest) {
     return this.recovery.reset(dto, req);
   }
@@ -102,7 +111,8 @@ export class AuthController {
    * login, o QR code do 2FA, o campo do código ou a carteira. Os dados do
    * usuário só são devolvidos quando a sessão é completa.
    */
-  @Access("any-stage") @Get("status")
+  @Access("any-stage")
+  @Get("status")
   status(@Req() req: AppRequest) {
     const auth = sessionOf(req);
     return {
@@ -119,12 +129,14 @@ export class AuthController {
     };
   }
 
-  @Access("partial") @Get("setup")
+  @Access("partial")
+  @Get("setup")
   setup(@Req() req: AppRequest) {
     return this.twoFactor.setup(req);
   }
 
-  @Access("partial") @Post("verify")
+  @Access("partial")
+  @Post("verify")
   async verify(
     @Body() dto: VerifyDto,
     @Req() req: AppRequest,
@@ -146,7 +158,8 @@ export class AuthController {
     return this.withSession(await this.twoFactor.rotate(dto, req), res);
   }
 
-  @Access("any-stage") @Post("logout")
+  @Access("any-stage")
+  @Post("logout")
   async logout(
     @Req() req: AppRequest,
     @Res({ passthrough: true }) res: Response

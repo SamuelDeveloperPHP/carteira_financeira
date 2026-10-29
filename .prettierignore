@@ -1,0 +1,13 @@
+node_modules/
+.next/
+dist/
+**/package-lock.json
+frontend/public/vendor/
+e2e/playwright-report/
+e2e/test-results/
+docs/
+*.md
+*.yaml
+*.sql
+*.css
+*.json

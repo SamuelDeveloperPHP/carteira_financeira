@@ -79,12 +79,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   function fail(e: unknown) {
-    notify("error", e instanceof Error ? e.message : "Não foi possível concluir.");
+    notify(
+      "error",
+      e instanceof Error ? e.message : "Não foi possível concluir."
+    );
     if (
       e instanceof ApiError &&
       e.status === 401 &&
       user &&
-      (e.message.startsWith("Sessão expirada") || e.message === "Entre para continuar.")
+      (e.message.startsWith("Sessão expirada") ||
+        e.message === "Entre para continuar.")
     ) {
       setUser(null);
       setStage("login");
@@ -108,7 +112,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     let active = true;
     (async () => {
       try {
-        const s = await api<{ stage: string; user: User | null }>("/auth/status");
+        const s = await api<{ stage: string; user: User | null }>(
+          "/auth/status"
+        );
         if (!active) return;
         setStage(s.stage);
         if (s.user) {
@@ -133,20 +139,25 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Contador do sino (só cliente comum): ao entrar, a cada 15 s e quando a aba
   // volta a ficar visível. É uma chamada barata (COUNT com índice parcial) e as
   // falhas são silenciosas: o próximo ciclo tenta de novo.
+  const customerId = user?.role === "user" ? user.id : null;
   useEffect(() => {
-    if (!user || user.role !== "user") {
+    if (!customerId) {
       setUnread(0);
       return;
     }
     let active = true;
     const refresh = async () => {
       try {
-        const { unread: total } = await api<{ unread: number }>("/notifications/count");
+        const { unread: total } = await api<{ unread: number }>(
+          "/notifications/count"
+        );
         if (!active) return;
         if (total > lastUnread.current)
           notify(
             "info",
-            total === 1 ? "Você tem 1 notificação nova." : `Você tem ${total} notificações novas.`
+            total === 1
+              ? "Você tem 1 notificação nova."
+              : `Você tem ${total} notificações novas.`
           );
         setUnread(total);
       } catch {
@@ -162,7 +173,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [user?.id, user?.role, setUnread]);
+  }, [customerId, setUnread]);
 
   function signIn(u: User, recoveryCodes: string[] = []) {
     setUser(u);
@@ -187,7 +198,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   return (
     <SessionContext.Provider
-      value={{ ready, user, stage, setStage, busy, work, fail, codes, setCodes, unread, setUnread, signIn, logout, expire }}
+      value={{
+        ready,
+        user,
+        stage,
+        setStage,
+        busy,
+        work,
+        fail,
+        codes,
+        setCodes,
+        unread,
+        setUnread,
+        signIn,
+        logout,
+        expire,
+      }}
     >
       {children}
     </SessionContext.Provider>

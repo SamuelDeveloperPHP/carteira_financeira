@@ -28,7 +28,11 @@ export interface PixDirectoryProvider {
   /** Solicita o registro da chave e devolve a decisão com um protocolo. */
   submit(request: PixSubmission): Promise<PixDecision>;
   /** Entrega o código de posse ao e-mail/telefone da chave. */
-  sendOwnershipCode(type: PixKeyType, value: string, code: string): Promise<void>;
+  sendOwnershipCode(
+    type: PixKeyType,
+    value: string,
+    code: string
+  ): Promise<void>;
   /** Confirma o registro depois da prova de posse. */
   confirm(protocol: string): Promise<PixDecision>;
 }

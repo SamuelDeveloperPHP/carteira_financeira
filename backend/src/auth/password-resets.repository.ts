@@ -9,7 +9,12 @@ export class PasswordResetsRepository {
    * link MAIS RECENTE funciona) e, de passagem, limpa links expirados de
    * qualquer conta, mantendo a tabela pequena sem precisar de rotina agendada.
    */
-  async issue(q: Queryable, userId: string, tokenHash: string, minutes: number) {
+  async issue(
+    q: Queryable,
+    userId: string,
+    tokenHash: string,
+    minutes: number
+  ) {
     await q.query(
       "DELETE FROM password_resets WHERE user_id=$1 OR expires_at<now()",
       [userId]

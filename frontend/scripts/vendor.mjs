@@ -6,7 +6,8 @@ import { cpSync, mkdirSync, existsSync } from "node:fs";
 
 const source = "node_modules/@vladmandic/face-api";
 const target = "public/vendor";
-if (!existsSync(source)) throw new Error("Instale as dependências antes (npm ci).");
+if (!existsSync(source))
+  throw new Error("Instale as dependências antes (npm ci).");
 
 mkdirSync(`${target}/face-models`, { recursive: true });
 cpSync(`${source}/dist/face-api.js`, `${target}/face-api.js`);
@@ -17,6 +18,9 @@ for (const model of [
   "face_recognition_model",
   "face_expression_model",
 ]) {
-  cpSync(`${source}/model/${model}-weights_manifest.json`, `${target}/face-models/${model}-weights_manifest.json`);
+  cpSync(
+    `${source}/model/${model}-weights_manifest.json`,
+    `${target}/face-models/${model}-weights_manifest.json`
+  );
   cpSync(`${source}/model/${model}.bin`, `${target}/face-models/${model}.bin`);
 }

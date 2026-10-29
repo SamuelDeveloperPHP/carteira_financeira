@@ -25,7 +25,11 @@ export class InsightsService {
 
     const pick = (kind: string, incoming: boolean) => {
       const r = kinds.find(k => k.kind === kind && k.incoming === incoming);
-      return { count: r?.n ?? 0, total: Number(r?.total ?? 0), biggest: Number(r?.biggest ?? 0) };
+      return {
+        count: r?.n ?? 0,
+        total: Number(r?.total ?? 0),
+        biggest: Number(r?.biggest ?? 0),
+      };
     };
     const deposits = pick("deposit", true);
     const received = pick("transfer", true);
@@ -38,7 +42,13 @@ export class InsightsService {
     const movements = kinds.reduce((sum, k) => sum + k.n, 0);
 
     const top = counterparts
-      .map(c => ({ id: c.id, name: c.name, received: Number(c.received), sent: Number(c.sent), count: c.n }))
+      .map(c => ({
+        id: c.id,
+        name: c.name,
+        received: Number(c.received),
+        sent: Number(c.sent),
+        count: c.n,
+      }))
       .sort((a, b) => b.sent + b.received - (a.sent + a.received));
     const topOut = [...top].sort((a, b) => b.sent - a.sent)[0];
 
@@ -53,14 +63,43 @@ export class InsightsService {
         movements,
         averageOut: sent.count ? Math.round(sent.total / sent.count) : 0,
         biggestOut: Math.max(sent.biggest, refundsSent.biggest),
-        biggestIn: Math.max(deposits.biggest, received.biggest, refundsReceived.biggest),
+        biggestIn: Math.max(
+          deposits.biggest,
+          received.biggest,
+          refundsReceived.biggest
+        ),
       },
       byKind: [
-        { id: "deposit", label: "Saldo adicionado", direction: "in", ...deposits },
-        { id: "transfer_in", label: "Transferências recebidas", direction: "in", ...received },
-        { id: "refund_in", label: "Devoluções recebidas", direction: "in", ...refundsReceived },
-        { id: "transfer_out", label: "Transferências enviadas", direction: "out", ...sent },
-        { id: "refund_out", label: "Devoluções enviadas", direction: "out", ...refundsSent },
+        {
+          id: "deposit",
+          label: "Saldo adicionado",
+          direction: "in",
+          ...deposits,
+        },
+        {
+          id: "transfer_in",
+          label: "Transferências recebidas",
+          direction: "in",
+          ...received,
+        },
+        {
+          id: "refund_in",
+          label: "Devoluções recebidas",
+          direction: "in",
+          ...refundsReceived,
+        },
+        {
+          id: "transfer_out",
+          label: "Transferências enviadas",
+          direction: "out",
+          ...sent,
+        },
+        {
+          id: "refund_out",
+          label: "Devoluções enviadas",
+          direction: "out",
+          ...refundsSent,
+        },
       ],
       series: series.map(s => ({
         date: s.bucket,

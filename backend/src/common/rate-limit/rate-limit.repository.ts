@@ -7,6 +7,9 @@ import { digest } from "../security/crypto";
 export class RateLimitRepository {
   constructor(private readonly db: Database) {}
 
+  /** Em média 1 contagem a cada `PURGE_EVERY` dispara a limpeza das janelas vencidas. */
+  private static readonly PURGE_EVERY = 200;
+
   /**
    * Conta mais uma tentativa na janela e devolve quantas já ocorreram nela.
    *
@@ -24,6 +27,19 @@ export class RateLimitRepository {
       `INSERT INTO rate_limits(key,count,expires_at) VALUES($1,1,now()+($2*interval '1 second')) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN rate_limits.expires_at<now() THEN 1 ELSE rate_limits.count+1 END, expires_at=CASE WHEN rate_limits.expires_at<now() THEN EXCLUDED.expires_at ELSE rate_limits.expires_at END RETURNING count`,
       [digest(key), seconds]
     );
+    // Sem esta limpeza a tabela só cresce (uma linha por e-mail/IP já visto).
+    // É oportunista, sem agendador: o custo é diluído nas próprias contagens e
+    // uma falha aqui nunca pode derrubar o login que acabou de ser contado.
+    if (Math.random() < 1 / RateLimitRepository.PURGE_EVERY)
+      void this.purgeExpired().catch(() => undefined);
     return rows[0].count;
+  }
+
+  /** Apaga as janelas já vencidas (o índice em expires_at evita varrer a tabela). */
+  async purgeExpired(): Promise<number> {
+    const result = await this.db.pool.query(
+      "DELETE FROM rate_limits WHERE expires_at<now()"
+    );
+    return result.rowCount ?? 0;
   }
 }

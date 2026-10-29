@@ -56,7 +56,10 @@ export class BankingRepository {
 
   async countAccounts(q: Queryable, userId: string): Promise<number> {
     return (
-      await q.query("SELECT count(*)::int AS n FROM bank_accounts WHERE user_id=$1", [userId])
+      await q.query(
+        "SELECT count(*)::int AS n FROM bank_accounts WHERE user_id=$1",
+        [userId]
+      )
     ).rows[0].n;
   }
 
@@ -74,7 +77,15 @@ export class BankingRepository {
   ) {
     await q.query(
       "INSERT INTO bank_accounts(id,user_id,bank_code,agency,account_number,account_type,holder_document) VALUES($1,$2,$3,$4,$5,$6,$7)",
-      [a.id, a.userId, a.bankCode, a.agency, a.accountNumber, a.accountType, a.holderDocument]
+      [
+        a.id,
+        a.userId,
+        a.bankCode,
+        a.agency,
+        a.accountNumber,
+        a.accountType,
+        a.holderDocument,
+      ]
     );
   }
 
@@ -92,7 +103,10 @@ export class BankingRepository {
     ).rows[0];
   }
 
-  async findAccount(userId: string, id: string): Promise<BankAccountRow | undefined> {
+  async findAccount(
+    userId: string,
+    id: string
+  ): Promise<BankAccountRow | undefined> {
     return (
       await this.db.pool.query(
         "SELECT * FROM bank_accounts WHERE id=$1 AND user_id=$2",
@@ -102,21 +116,37 @@ export class BankingRepository {
   }
 
   /** As chaves saem junto (ON DELETE CASCADE). */
-  async deleteAccount(q: Queryable, userId: string, id: string): Promise<boolean> {
+  async deleteAccount(
+    q: Queryable,
+    userId: string,
+    id: string
+  ): Promise<boolean> {
     return (
-      ((await q.query("DELETE FROM bank_accounts WHERE id=$1 AND user_id=$2", [id, userId])).rowCount ?? 0) > 0
+      ((
+        await q.query("DELETE FROM bank_accounts WHERE id=$1 AND user_id=$2", [
+          id,
+          userId,
+        ])
+      ).rowCount ?? 0) > 0
     );
   }
 
   async countKeys(q: Queryable, accountId: string): Promise<number> {
     return (
-      await q.query("SELECT count(*)::int AS n FROM pix_keys WHERE bank_account_id=$1", [accountId])
+      await q.query(
+        "SELECT count(*)::int AS n FROM pix_keys WHERE bank_account_id=$1",
+        [accountId]
+      )
     ).rows[0].n;
   }
 
   async keyExists(value: string): Promise<boolean> {
     return (
-      ((await this.db.pool.query("SELECT 1 FROM pix_keys WHERE key_value=$1", [value])).rowCount ?? 0) > 0
+      ((
+        await this.db.pool.query("SELECT 1 FROM pix_keys WHERE key_value=$1", [
+          value,
+        ])
+      ).rowCount ?? 0) > 0
     );
   }
 
@@ -140,13 +170,31 @@ export class BankingRepository {
        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,
               CASE WHEN $10::int IS NULL THEN NULL ELSE now()+($10::int*interval '1 minute') END,
               CASE WHEN $6='approved' THEN now() END)`,
-      [k.id, k.accountId, k.userId, k.type, k.value, k.status, k.protocol, k.reason, k.proofHash, k.proofMinutes]
+      [
+        k.id,
+        k.accountId,
+        k.userId,
+        k.type,
+        k.value,
+        k.status,
+        k.protocol,
+        k.reason,
+        k.proofHash,
+        k.proofMinutes,
+      ]
     );
   }
 
-  async lockKey(q: Queryable, userId: string, id: string): Promise<PixKeyRow | undefined> {
+  async lockKey(
+    q: Queryable,
+    userId: string,
+    id: string
+  ): Promise<PixKeyRow | undefined> {
     return (
-      await q.query("SELECT * FROM pix_keys WHERE id=$1 AND user_id=$2 FOR UPDATE", [id, userId])
+      await q.query(
+        "SELECT * FROM pix_keys WHERE id=$1 AND user_id=$2 FOR UPDATE",
+        [id, userId]
+      )
     ).rows[0];
   }
 
@@ -159,10 +207,18 @@ export class BankingRepository {
 
   /** Conta uma tentativa errada. Roda FORA da transação de confirmação para sobreviver ao erro lançado depois. */
   async addProofAttempt(id: string) {
-    await this.db.pool.query("UPDATE pix_keys SET proof_attempts=proof_attempts+1 WHERE id=$1", [id]);
+    await this.db.pool.query(
+      "UPDATE pix_keys SET proof_attempts=proof_attempts+1 WHERE id=$1",
+      [id]
+    );
   }
 
-  async renewProof(q: Queryable, id: string, proofHash: string, minutes: number) {
+  async renewProof(
+    q: Queryable,
+    id: string,
+    proofHash: string,
+    minutes: number
+  ) {
     await q.query(
       "UPDATE pix_keys SET proof_hash=$2,proof_expires_at=now()+($3*interval '1 minute'),proof_attempts=0 WHERE id=$1",
       [id, proofHash, minutes]
@@ -196,7 +252,12 @@ export class BankingRepository {
 
   async deleteKey(q: Queryable, userId: string, id: string): Promise<boolean> {
     return (
-      ((await q.query("DELETE FROM pix_keys WHERE id=$1 AND user_id=$2", [id, userId])).rowCount ?? 0) > 0
+      ((
+        await q.query("DELETE FROM pix_keys WHERE id=$1 AND user_id=$2", [
+          id,
+          userId,
+        ])
+      ).rowCount ?? 0) > 0
     );
   }
 }

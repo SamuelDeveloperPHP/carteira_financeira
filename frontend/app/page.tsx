@@ -16,13 +16,16 @@ import { homeOf, useSession } from "./session";
 
 export default function Entry() {
   const router = useRouter();
-  const { ready, user, stage, setStage, busy, work, signIn, logout } = useSession();
+  const { ready, user, stage, setStage, busy, work, signIn, logout } =
+    useSession();
   const [register, setRegister] = useState(false),
     [name, setName] = useState(""),
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [code, setCode] = useState("");
-  const [recovery, setRecovery] = useState<"none" | "request" | "reset">("none"),
+  const [recovery, setRecovery] = useState<"none" | "request" | "reset">(
+      "none"
+    ),
     [resetToken, setResetToken] = useState(""),
     [newPassword, setNewPassword] = useState("");
   // Recuperação com reconhecimento facial: o servidor diz se o usuário o ativou;
@@ -30,7 +33,10 @@ export default function Entry() {
   const [faceNeeded, setFaceNeeded] = useState(false),
     [faceOpen, setFaceOpen] = useState(false),
     [faceResult, setFaceResult] = useState<FaceResult | null>(null);
-  const [enrollment, setEnrollment] = useState<{ qr: string; secret: string } | null>(null);
+  const [enrollment, setEnrollment] = useState<{
+    qr: string;
+    secret: string;
+  } | null>(null);
 
   // Já autenticado: vai para a página inicial do perfil.
   useEffect(() => {
@@ -50,7 +56,9 @@ export default function Entry() {
       setFaceResult(null);
       setFaceOpen(false);
       // Pergunta se este usuário exigirá o rosto (não gasta o link).
-      api<{ faceRequired: boolean }>("/auth/reset-requirements", "POST", { token })
+      api<{ faceRequired: boolean }>("/auth/reset-requirements", "POST", {
+        token,
+      })
         .then(r => setFaceNeeded(r.faceRequired))
         .catch(() => {});
     };
@@ -78,7 +86,10 @@ export default function Entry() {
         await api("/auth/register", "POST", { name, email, password });
         setRegister(false);
         setPassword("");
-        notify("success", "Conta criada com saldo zero. Entre para configurar o autenticador.");
+        notify(
+          "success",
+          "Conta criada com saldo zero. Entre para configurar o autenticador."
+        );
         return;
       }
       const location = await locate();
@@ -93,7 +104,11 @@ export default function Entry() {
   async function forgot(e: FormEvent) {
     e.preventDefault();
     await work(async () => {
-      const r = await api<{ message: string }>("/auth/forgot-password", "POST", { email });
+      const r = await api<{ message: string }>(
+        "/auth/forgot-password",
+        "POST",
+        { email }
+      );
       setRecovery("none");
       notify("success", r.message);
     });
@@ -104,11 +119,17 @@ export default function Entry() {
     e.preventDefault();
     await work(async () => {
       try {
-        const r = await api<{ message: string }>("/auth/reset-password", "POST", {
-          token: resetToken,
-          password: newPassword,
-          ...(faceNeeded && faceResult ? { face: faceResult.descriptor } : {}),
-        });
+        const r = await api<{ message: string }>(
+          "/auth/reset-password",
+          "POST",
+          {
+            token: resetToken,
+            password: newPassword,
+            ...(faceNeeded && faceResult
+              ? { face: faceResult.descriptor }
+              : {}),
+          }
+        );
         setNewPassword("");
         setResetToken("");
         setRecovery("none");
@@ -141,275 +162,269 @@ export default function Entry() {
       </main>
     );
   return (
-        <main className="auth-grid">
-          <section className="auth-story">
-            <Brand />
-            <div>
-              <h1>
-                Seu saldo.
-                <br />
-                Cada movimento.
-              </h1>
-              <p>
-                Transfira entre carteiras com acesso protegido e histórico de
-                todas as operações.
+    <main className="auth-grid">
+      <section className="auth-story">
+        <Brand />
+        <div>
+          <h1>
+            Seu saldo.
+            <br />
+            Cada movimento.
+          </h1>
+          <p>
+            Transfira entre carteiras com acesso protegido e histórico de todas
+            as operações.
+          </p>
+        </div>
+        <footer>
+          Autenticação em dois fatores
+          <br />
+          Rastreabilidade do início ao fim
+        </footer>
+      </section>
+      <section className="auth-form">
+        <div className="auth-form-inner">
+          {stage === "login" && recovery === "request" ? (
+            <>
+              <h2>Recuperar acesso</h2>
+              <p className="muted">
+                Informe seu e-mail. Se houver conta, enviaremos um link válido
+                por 7 minutos e de uso único. O segundo fator continuará
+                obrigatório.
               </p>
-            </div>
-            <footer>
-              Autenticação em dois fatores
-              <br />
-              Rastreabilidade do início ao fim
-            </footer>
-          </section>
-          <section className="auth-form">
-            <div className="auth-form-inner">
-              {stage === "login" && recovery === "request" ? (
-                <>
-                  <h2>Recuperar acesso</h2>
-                  <p className="muted">
-                    Informe seu e-mail. Se houver conta, enviaremos um link
-                    válido por 7 minutos e de uso único. O segundo fator
-                    continuará obrigatório.
-                  </p>
-                  <form onSubmit={forgot}>
-                    <Field label="E-mail">
-                      <input
-                        className="form-control"
-                        type="email"
-                        autoComplete="username"
-                        required
-                        maxLength={254}
-                        value={email}
-                        onChange={e => setEmail(e.target.value)}
+              <form onSubmit={forgot}>
+                <Field label="E-mail">
+                  <input
+                    className="form-control"
+                    type="email"
+                    autoComplete="username"
+                    required
+                    maxLength={254}
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                  />
+                </Field>
+                <button disabled={busy} className="btn btn-primary w-100">
+                  {busy ? "Aguarde…" : "Enviar link"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-link w-100 mt-2"
+                  onClick={() => setRecovery("none")}
+                >
+                  Voltar ao login
+                </button>
+              </form>
+            </>
+          ) : stage === "login" && recovery === "reset" ? (
+            <>
+              <h2>Definir nova senha</h2>
+              <p className="muted">
+                Escolha uma nova senha. Todas as sessões serão encerradas e o
+                código do autenticador continuará sendo exigido.
+              </p>
+              <form onSubmit={resetPassword}>
+                <Field label="Nova senha">
+                  <PasswordInput
+                    autoComplete="new-password"
+                    minLength={12}
+                    value={newPassword}
+                    onChange={setNewPassword}
+                  />
+                  <small>Use pelo menos 12 caracteres.</small>
+                </Field>
+                {faceNeeded && (
+                  <div className="face-gate">
+                    <strong>Confirmação facial</strong>
+                    <p className="muted">
+                      Você ativou o reconhecimento facial. Além do link,
+                      confirme seu rosto: vire à direita e à esquerda, abaixe e
+                      levante a cabeça e sorria.
+                    </p>
+                    {faceOpen ? (
+                      <FaceFlow
+                        onDone={r => {
+                          setFaceResult(r);
+                          setFaceOpen(false);
+                        }}
+                        onCancel={() => setFaceOpen(false)}
                       />
-                    </Field>
-                    <button disabled={busy} className="btn btn-primary w-100">
-                      {busy ? "Aguarde…" : "Enviar link"}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-link w-100 mt-2"
-                      onClick={() => setRecovery("none")}
-                    >
-                      Voltar ao login
-                    </button>
-                  </form>
-                </>
-              ) : stage === "login" && recovery === "reset" ? (
-                <>
-                  <h2>Definir nova senha</h2>
-                  <p className="muted">
-                    Escolha uma nova senha. Todas as sessões serão encerradas e
-                    o código do autenticador continuará sendo exigido.
-                  </p>
-                  <form onSubmit={resetPassword}>
-                    <Field label="Nova senha">
-                      <PasswordInput
-                        autoComplete="new-password"
-                        minLength={12}
-                        value={newPassword}
-                        onChange={setNewPassword}
-                      />
-                      <small>Use pelo menos 12 caracteres.</small>
-                    </Field>
-                    {faceNeeded && (
-                      <div className="face-gate">
-                        <strong>Confirmação facial</strong>
-                        <p className="muted">
-                          Você ativou o reconhecimento facial. Além do link,
-                          confirme seu rosto: vire à direita e à esquerda,
-                          abaixe e levante a cabeça e sorria.
-                        </p>
-                        {faceOpen ? (
-                          <FaceFlow
-                            onDone={r => {
-                              setFaceResult(r);
-                              setFaceOpen(false);
-                            }}
-                            onCancel={() => setFaceOpen(false)}
-                          />
-                        ) : faceResult ? (
-                          <p className="status ok">Rosto verificado ✓</p>
-                        ) : (
-                          <button
-                            type="button"
-                            className="btn btn-outline-secondary"
-                            disabled={busy}
-                            onClick={() => setFaceOpen(true)}
-                          >
-                            Confirmar meu rosto
-                          </button>
-                        )}
-                      </div>
-                    )}
-                    <button
-                      disabled={busy || (faceNeeded && !faceResult)}
-                      className="btn btn-primary w-100"
-                    >
-                      {busy ? "Aguarde…" : "Redefinir senha"}
-                    </button>
-                  </form>
-                </>
-              ) : stage === "login" ? (
-                <>
-                  <h2>
-                    {register ? "Abra sua carteira" : "Acesse sua carteira"}
-                  </h2>
-                  <p className="muted">
-                    {register
-                      ? "Comece com saldo zero e configure seu autenticador."
-                      : "Entre com sua senha. Depois, confirme o segundo fator."}
-                  </p>
-                  <div className="auth-tabs">
-                    <button
-                      className={!register ? "active" : ""}
-                      onClick={() => setRegister(false)}
-                    >
-                      Entrar
-                    </button>
-                    <button
-                      className={register ? "active" : ""}
-                      onClick={() => setRegister(true)}
-                    >
-                      Criar conta
-                    </button>
-                  </div>
-                  <form onSubmit={login}>
-                    {register && (
-                      <Field label="Nome completo">
-                        <input
-                          className="form-control"
-                          autoComplete="name"
-                          required
-                          minLength={2}
-                          maxLength={100}
-                          value={name}
-                          onChange={e => setName(e.target.value)}
-                        />
-                      </Field>
-                    )}
-                    <Field label="E-mail">
-                      <input
-                        className="form-control"
-                        type="email"
-                        autoComplete="username"
-                        required
-                        maxLength={254}
-                        value={email}
-                        onChange={e => setEmail(e.target.value)}
-                      />
-                    </Field>
-                    <Field label="Senha">
-                      <PasswordInput
-                        autoComplete={
-                          register ? "new-password" : "current-password"
-                        }
-                        minLength={register ? 12 : 1}
-                        value={password}
-                        onChange={setPassword}
-                      />
-                      {register && <small>Use pelo menos 12 caracteres.</small>}
-                    </Field>
-                    {!register && (
-                      <p className="small muted">
-                        Ao entrar, solicitaremos sua localização para o
-                        histórico de segurança. Você pode recusar e continuar.
-                      </p>
-                    )}
-                    <button disabled={busy} className="btn btn-primary w-100">
-                      {busy
-                        ? "Aguarde…"
-                        : register
-                          ? "Criar conta"
-                          : "Continuar"}
-                    </button>
-                    {!register && (
+                    ) : faceResult ? (
+                      <p className="status ok">Rosto verificado ✓</p>
+                    ) : (
                       <button
                         type="button"
-                        className="btn btn-link w-100 mt-2"
-                        onClick={() => setRecovery("request")}
+                        className="btn btn-outline-secondary"
+                        disabled={busy}
+                        onClick={() => setFaceOpen(true)}
                       >
-                        Esqueci minha senha
+                        Confirmar meu rosto
                       </button>
                     )}
-                  </form>
-                </>
-              ) : (
+                  </div>
+                )}
+                <button
+                  disabled={busy || (faceNeeded && !faceResult)}
+                  className="btn btn-primary w-100"
+                >
+                  {busy ? "Aguarde…" : "Redefinir senha"}
+                </button>
+              </form>
+            </>
+          ) : stage === "login" ? (
+            <>
+              <h2>{register ? "Abra sua carteira" : "Acesse sua carteira"}</h2>
+              <p className="muted">
+                {register
+                  ? "Comece com saldo zero e configure seu autenticador."
+                  : "Entre com sua senha. Depois, confirme o segundo fator."}
+              </p>
+              <div className="auth-tabs">
+                <button
+                  className={!register ? "active" : ""}
+                  onClick={() => setRegister(false)}
+                >
+                  Entrar
+                </button>
+                <button
+                  className={register ? "active" : ""}
+                  onClick={() => setRegister(true)}
+                >
+                  Criar conta
+                </button>
+              </div>
+              <form onSubmit={login}>
+                {register && (
+                  <Field label="Nome completo">
+                    <input
+                      className="form-control"
+                      autoComplete="name"
+                      required
+                      minLength={2}
+                      maxLength={100}
+                      value={name}
+                      onChange={e => setName(e.target.value)}
+                    />
+                  </Field>
+                )}
+                <Field label="E-mail">
+                  <input
+                    className="form-control"
+                    type="email"
+                    autoComplete="username"
+                    required
+                    maxLength={254}
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                  />
+                </Field>
+                <Field label="Senha">
+                  <PasswordInput
+                    autoComplete={
+                      register ? "new-password" : "current-password"
+                    }
+                    minLength={register ? 12 : 1}
+                    value={password}
+                    onChange={setPassword}
+                  />
+                  {register && <small>Use pelo menos 12 caracteres.</small>}
+                </Field>
+                {!register && (
+                  <p className="small muted">
+                    Ao entrar, solicitaremos sua localização para o histórico de
+                    segurança. Você pode recusar e continuar.
+                  </p>
+                )}
+                <button disabled={busy} className="btn btn-primary w-100">
+                  {busy ? "Aguarde…" : register ? "Criar conta" : "Continuar"}
+                </button>
+                {!register && (
+                  <button
+                    type="button"
+                    className="btn btn-link w-100 mt-2"
+                    onClick={() => setRecovery("request")}
+                  >
+                    Esqueci minha senha
+                  </button>
+                )}
+              </form>
+            </>
+          ) : (
+            <>
+              <h2>
+                {stage === "setup"
+                  ? "Configure seu autenticador"
+                  : "Confirme seu acesso"}
+              </h2>
+              {stage === "setup" ? (
                 <>
-                  <h2>
-                    {stage === "setup"
-                      ? "Configure seu autenticador"
-                      : "Confirme seu acesso"}
-                  </h2>
-                  {stage === "setup" ? (
+                  <p>
+                    Escaneie o QR Code com Google Authenticator, Microsoft
+                    Authenticator ou aplicativo compatível.
+                  </p>
+                  {enrollment ? (
                     <>
-                      <p>
-                        Escaneie o QR Code com Google Authenticator, Microsoft
-                        Authenticator ou aplicativo compatível.
-                      </p>
-                      {enrollment ? (
-                        <>
-                          <img
-                            className="qr"
-                            src={enrollment.qr}
-                            alt="QR Code para cadastrar a carteira no autenticador"
-                          />
-                          <details>
-                            <summary>Inserir a chave manualmente</summary>
-                            <code className="secret">{enrollment.secret}</code>
-                          </details>
-                        </>
-                      ) : (
-                        <button
-                          className="btn btn-outline-secondary"
-                          onClick={() =>
-                            work(async () =>
-                              setEnrollment(await api("/auth/setup"))
-                            )
-                          }
-                        >
-                          Carregar QR Code
-                        </button>
-                      )}
+                      <img
+                        className="qr"
+                        src={enrollment.qr}
+                        alt="QR Code para cadastrar a carteira no autenticador"
+                      />
+                      <details>
+                        <summary>Inserir a chave manualmente</summary>
+                        <code className="secret">{enrollment.secret}</code>
+                      </details>
                     </>
                   ) : (
-                    <p className="muted">
-                      Informe o código de seis dígitos ou um código de
-                      recuperação ainda não utilizado.
-                    </p>
-                  )}
-                  <form className="mt-4" onSubmit={verify}>
-                    <Field
-                      label={
-                        stage === "setup"
-                          ? "Código do autenticador"
-                          : "Código do autenticador ou de recuperação"
+                    <button
+                      className="btn btn-outline-secondary"
+                      onClick={() =>
+                        work(async () =>
+                          setEnrollment(await api("/auth/setup"))
+                        )
                       }
                     >
-                      <input
-                        className="form-control"
-                        autoComplete="one-time-code"
-                        required
-                        maxLength={32}
-                        value={code}
-                        onChange={e => setCode(e.target.value)}
-                      />
-                    </Field>
-                    <button className="btn btn-primary w-100" disabled={busy}>
-                      {busy ? "Validando…" : "Confirmar acesso"}
+                      Carregar QR Code
                     </button>
-                  </form>
-                  <button
-                    className="btn btn-link mt-3"
-                    disabled={busy}
-                    onClick={logout}
-                  >
-                    Voltar ao login
-                  </button>
+                  )}
                 </>
+              ) : (
+                <p className="muted">
+                  Informe o código de seis dígitos ou um código de recuperação
+                  ainda não utilizado.
+                </p>
               )}
-            </div>
-          </section>
-        </main>
+              <form className="mt-4" onSubmit={verify}>
+                <Field
+                  label={
+                    stage === "setup"
+                      ? "Código do autenticador"
+                      : "Código do autenticador ou de recuperação"
+                  }
+                >
+                  <input
+                    className="form-control"
+                    autoComplete="one-time-code"
+                    required
+                    maxLength={32}
+                    value={code}
+                    onChange={e => setCode(e.target.value)}
+                  />
+                </Field>
+                <button className="btn btn-primary w-100" disabled={busy}>
+                  {busy ? "Validando…" : "Confirmar acesso"}
+                </button>
+              </form>
+              <button
+                className="btn btn-link mt-3"
+                disabled={busy}
+                onClick={logout}
+              >
+                Voltar ao login
+              </button>
+            </>
+          )}
+        </div>
+      </section>
+    </main>
   );
 }

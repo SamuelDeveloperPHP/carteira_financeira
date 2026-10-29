@@ -16,7 +16,11 @@ export function useWork(fail?: (e: unknown) => void) {
       await fn();
     } catch (e) {
       if (fail) fail(e);
-      else notify("error", e instanceof Error ? e.message : "Não foi possível concluir.");
+      else
+        notify(
+          "error",
+          e instanceof Error ? e.message : "Não foi possível concluir."
+        );
     } finally {
       setBusy(false);
     }

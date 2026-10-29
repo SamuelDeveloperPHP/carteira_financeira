@@ -11,7 +11,9 @@ export function parseDescriptor(value: unknown): number[] {
   if (
     !Array.isArray(value) ||
     value.length !== FACE_VECTOR_SIZE ||
-    value.some(n => typeof n !== "number" || !Number.isFinite(n) || Math.abs(n) > 5)
+    value.some(
+      n => typeof n !== "number" || !Number.isFinite(n) || Math.abs(n) > 5
+    )
   )
     throw new BadRequestException("Leitura facial inválida. Tente novamente.");
   return value as number[];

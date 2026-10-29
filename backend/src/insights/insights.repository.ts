@@ -35,7 +35,10 @@ export class InsightsRepository {
   constructor(private readonly db: Database) {}
 
   async balance(userId: string): Promise<string> {
-    const r = await this.db.pool.query("SELECT balance::text AS balance FROM wallets WHERE user_id=$1", [userId]);
+    const r = await this.db.pool.query(
+      "SELECT balance::text AS balance FROM wallets WHERE user_id=$1",
+      [userId]
+    );
     return r.rows[0]?.balance ?? "0";
   }
 
@@ -54,7 +57,11 @@ export class InsightsRepository {
   }
 
   /** Série por dia, semana ou mês: entradas, saídas e o saldo ao fim de cada intervalo. */
-  async series(userId: string, days: number, bucket: Bucket): Promise<SeriesRow[]> {
+  async series(
+    userId: string,
+    days: number,
+    bucket: Bucket
+  ): Promise<SeriesRow[]> {
     return (
       await this.db.pool.query(
         `SELECT date_trunc('${bucket}',e.created_at) AS bucket,

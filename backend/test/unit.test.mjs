@@ -3,8 +3,15 @@ import assert from "node:assert/strict";
 import crypto from "../dist/common/security/crypto.js";
 import validation from "../dist/common/security/validation.js";
 import { randomBytes } from "node:crypto";
-const { hashPassword, checkPassword, encrypt, decrypt, totp, totpStep, newSecret } =
-  crypto;
+const {
+  hashPassword,
+  checkPassword,
+  encrypt,
+  decrypt,
+  totp,
+  totpStep,
+  newSecret,
+} = crypto;
 const { money, location, object } = validation;
 test("valores monetários exigem centavos inteiros positivos e limitados", () => {
   for (const value of [0, -1, 1.1, NaN, Infinity, "100", 1000000000001])

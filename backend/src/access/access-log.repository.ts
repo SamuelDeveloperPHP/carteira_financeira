@@ -37,7 +37,15 @@ export class AccessLogRepository {
   ) {
     await q.query(
       "INSERT INTO access_log(id,user_id,token_hash,expires_at,ip,device,location) VALUES($1,$2,$3,now()+($4*interval '1 minute'),$5,$6,$7)",
-      [a.id, a.userId, a.tokenHash, a.minutes, a.ip, a.device, a.location ?? { status: "unavailable" }]
+      [
+        a.id,
+        a.userId,
+        a.tokenHash,
+        a.minutes,
+        a.ip,
+        a.device,
+        a.location ?? { status: "unavailable" },
+      ]
     );
   }
 
@@ -58,7 +66,12 @@ export class AccessLogRepository {
     (token_hash=$2) AS current,
     EXTRACT(EPOCH FROM (coalesce(ended_at,now())-started_at))::int AS duration_seconds`;
 
-  async page(userId: string, currentHash: string, offset: number, limit: number): Promise<AccessRow[]> {
+  async page(
+    userId: string,
+    currentHash: string,
+    offset: number,
+    limit: number
+  ): Promise<AccessRow[]> {
     return (
       await this.db.pool.query(
         `SELECT ${AccessLogRepository.COLUMNS} FROM access_log WHERE user_id=$1
@@ -69,7 +82,11 @@ export class AccessLogRepository {
   }
 
   /** Acessos com coordenadas, do mais novo para o mais antigo, para o mapa geral. */
-  async withCoordinates(userId: string, currentHash: string, limit: number): Promise<AccessRow[]> {
+  async withCoordinates(
+    userId: string,
+    currentHash: string,
+    limit: number
+  ): Promise<AccessRow[]> {
     return (
       await this.db.pool.query(
         `SELECT ${AccessLogRepository.COLUMNS} FROM access_log
