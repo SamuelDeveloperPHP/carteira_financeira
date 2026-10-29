@@ -41,8 +41,7 @@ async function migrate() {
           ).rowCount
         : 0;
       // Idempotente: rodar o comando de novo só aplica o que ainda falta.
-      if (!applied)
-        await c.query(readFileSync(`migrations/${file}`, "utf8"));
+      if (!applied) await c.query(readFileSync(`migrations/${file}`, "utf8"));
     }
 
     // A senha do usuário da API vem do ambiente e é exigida forte: 32 bytes
@@ -85,7 +84,9 @@ async function migrate() {
 
     await c.query("COMMIT");
     console.log(
-      JSON.stringify({ event: "migration.completed", version: files[files.length - 1].replace(/\.sql$/, ""),
+      JSON.stringify({
+        event: "migration.completed",
+        version: files[files.length - 1].replace(/\.sql$/, ""),
       })
     );
   } catch (e) {

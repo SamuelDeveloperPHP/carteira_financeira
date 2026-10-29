@@ -8,7 +8,10 @@ const { digest, checkPassword } = crypto;
 function setup() {
   const state = {
     users: new Map([
-      ["ana@example.test", { id: "u1", email: "ana@example.test", password_hash: "antigo" }],
+      [
+        "ana@example.test",
+        { id: "u1", email: "ana@example.test", password_hash: "antigo" },
+      ],
     ]),
     resets: new Map(),
     sessionsDeletedFor: [],
@@ -33,12 +36,14 @@ function setup() {
     findByEmail: async email => state.users.get(email),
     lockById: async () => {},
     setPassword: async (_q, id, hash) => {
-      for (const u of state.users.values()) if (u.id === id) u.password_hash = hash;
+      for (const u of state.users.values())
+        if (u.id === id) u.password_hash = hash;
     },
   };
   const resets = {
     issue: async (_q, userId, hash, minutes) => {
-      for (const [h, r] of state.resets) if (r.userId === userId) state.resets.delete(h);
+      for (const [h, r] of state.resets)
+        if (r.userId === userId) state.resets.delete(h);
       state.resets.set(hash, { userId, minutes });
     },
     consume: async (_q, hash) => {
@@ -47,24 +52,43 @@ function setup() {
       return row?.userId;
     },
     deleteForUser: async (_q, userId) => {
-      for (const [h, r] of state.resets) if (r.userId === userId) state.resets.delete(h);
+      for (const [h, r] of state.resets)
+        if (r.userId === userId) state.resets.delete(h);
     },
   };
-  const sessions = { deleteByUser: async (_q, id) => state.sessionsDeletedFor.push(id) };
-  const audit = { record: async (action, actor, _r, _c, _d, outcome = "success") => state.audit.push({ action, actor, outcome }) };
-  const limiter = { throttle: async (key, limit) => state.throttles.push([key, limit]) };
+  const sessions = {
+    deleteByUser: async (_q, id) => state.sessionsDeletedFor.push(id),
+  };
+  const audit = {
+    record: async (action, actor, _r, _c, _d, outcome = "success") =>
+      state.audit.push({ action, actor, outcome }),
+  };
+  const limiter = {
+    throttle: async (key, limit) => state.throttles.push([key, limit]),
+  };
   const mail = {
     name: "test",
-    sendPasswordReset: async (to, token, minutes) => state.mails.push({ to, token, minutes }),
+    sendPasswordReset: async (to, token, minutes) =>
+      state.mails.push({ to, token, minutes }),
   };
   const faces = {
     required: false,
     isRequired: async () => faces.required,
     assertMatch: async (_u, candidate) => {
-      if (candidate !== "rosto-certo") throw Object.assign(new Error("x"), { getStatus: () => 403 });
+      if (candidate !== "rosto-certo")
+        throw Object.assign(new Error("x"), { getStatus: () => 403 });
     },
   };
-  const service = new recoveryModule.PasswordRecoveryService(db, users, resets, sessions, audit, limiter, mail, faces);
+  const service = new recoveryModule.PasswordRecoveryService(
+    db,
+    users,
+    resets,
+    sessions,
+    audit,
+    limiter,
+    mail,
+    faces
+  );
   const req = { ip: "127.0.0.1", correlationId: "c", headers: {} };
   return { state, service, req, faces, resets };
 }
@@ -72,14 +96,20 @@ function setup() {
 test("o pedido responde igual para e-mail cadastrado ou desconhecido", async () => {
   const { state, service, req } = setup();
   const known = await service.forgot({ email: "ana@example.test" }, { ...req });
-  const unknown = await service.forgot({ email: "ninguem@example.test" }, { ...req });
+  const unknown = await service.forgot(
+    { email: "ninguem@example.test" },
+    { ...req }
+  );
   assert.deepEqual(known, unknown);
   assert.match(known.message, /7 minutos/);
   assert.equal(state.mails.length, 1);
   assert.equal(state.mails[0].to, "ana@example.test");
   assert.equal(state.mails[0].minutes, 7);
   assert.equal(state.audit.at(-1).outcome, "denied");
-  assert.deepEqual(state.throttles.slice(0, 2), [["forgot-ip:127.0.0.1", 10], ["forgot-email:ana@example.test", 3]]);
+  assert.deepEqual(state.throttles.slice(0, 2), [
+    ["forgot-ip:127.0.0.1", 10],
+    ["forgot-email:ana@example.test", 3],
+  ]);
 });
 
 test("só o hash do token é guardado e um novo pedido invalida o anterior", async () => {
@@ -90,20 +120,42 @@ test("só o hash do token é guardado e um novo pedido invalida o anterior", asy
   assert.equal(state.resets.size, 1);
   assert(!state.resets.has(first) && !state.resets.has(second));
   assert(state.resets.has(digest(second)));
-  await assert.rejects(service.reset({ token: first, password: "uma-senha-bem-longa" }, { ...req }), e => e.getStatus() === 400);
+  await assert.rejects(
+    service.reset(
+      { token: first, password: "uma-senha-bem-longa" },
+      { ...req }
+    ),
+    e => e.getStatus() === 400
+  );
 });
 
 test("a redefinição troca a senha, encerra sessões e o token vale uma vez", async () => {
   const { state, service, req } = setup();
   await service.forgot({ email: "ana@example.test" }, { ...req });
   const { token } = state.mails[0];
-  const result = await service.reset({ token, password: "uma-senha-bem-longa" }, { ...req });
+  const result = await service.reset(
+    { token, password: "uma-senha-bem-longa" },
+    { ...req }
+  );
   assert.match(result.message, /segundo fator/);
-  assert(await checkPassword("uma-senha-bem-longa", state.users.get("ana@example.test").password_hash));
+  assert(
+    await checkPassword(
+      "uma-senha-bem-longa",
+      state.users.get("ana@example.test").password_hash
+    )
+  );
   assert.deepEqual(state.sessionsDeletedFor, ["u1"]);
   assert.equal(state.audit.at(-1).action, "auth.password.reset");
-  await assert.rejects(service.reset({ token, password: "outra-senha-bem-longa" }, { ...req }), e => e.getStatus() === 400);
-  assert(await checkPassword("uma-senha-bem-longa", state.users.get("ana@example.test").password_hash));
+  await assert.rejects(
+    service.reset({ token, password: "outra-senha-bem-longa" }, { ...req }),
+    e => e.getStatus() === 400
+  );
+  assert(
+    await checkPassword(
+      "uma-senha-bem-longa",
+      state.users.get("ana@example.test").password_hash
+    )
+  );
 });
 
 test("falha no envio do e-mail não revela nem derruba o pedido", async () => {
@@ -118,10 +170,18 @@ test("falha no envio do e-mail não revela nem derruba o pedido", async () => {
       {},
       { record: async () => {} },
       { throttle: async () => {} },
-      { name: "x", sendPasswordReset: async () => { throw new Error("smtp"); } },
+      {
+        name: "x",
+        sendPasswordReset: async () => {
+          throw new Error("smtp");
+        },
+      },
       {}
     );
-    const answer = await failing.forgot({ email: "ana@example.test" }, { ...req });
+    const answer = await failing.forgot(
+      { email: "ana@example.test" },
+      { ...req }
+    );
     assert.match(answer.message, /7 minutos/);
   } finally {
     console.error = original;
@@ -140,11 +200,17 @@ test("com reconhecimento facial ativo, o link sozinho não redefine a senha", as
   );
   // Rosto que não confere: recusado.
   await assert.rejects(
-    service.reset({ token, password: "uma-senha-bem-longa", face: "outro" }, { ...req }),
+    service.reset(
+      { token, password: "uma-senha-bem-longa", face: "outro" },
+      { ...req }
+    ),
     e => e.getStatus() === 403
   );
   assert.equal(state.users.get("ana@example.test").password_hash, "antigo");
   // Rosto correto: redefine.
-  const ok = await service.reset({ token, password: "uma-senha-bem-longa", face: "rosto-certo" }, { ...req });
+  const ok = await service.reset(
+    { token, password: "uma-senha-bem-longa", face: "rosto-certo" },
+    { ...req }
+  );
   assert.match(ok.message, /Senha redefinida/);
 });

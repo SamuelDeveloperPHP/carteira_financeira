@@ -43,7 +43,12 @@ const PITCH_DELTA = 0.07;
 const SMILE_SCORE = 0.7;
 
 /** O quadro atual cumpre a etapa? `base` é a pose de frente medida no começo. */
-export function stepDone(step: Step, pose: Pose, base: Pose, happy: number): boolean {
+export function stepDone(
+  step: Step,
+  pose: Pose,
+  base: Pose,
+  happy: number
+): boolean {
   switch (step) {
     case "right":
       return pose.yaw <= base.yaw - YAW_DELTA;
@@ -63,5 +68,7 @@ export const isFrontal = (pose: Pose) => pose.yaw > 0.42 && pose.yaw < 0.58;
 
 /** Média de vários vetores faciais (reduz o ruído de um único quadro). */
 export function averageVectors(vectors: number[][]): number[] {
-  return vectors[0].map((_, i) => vectors.reduce((s, v) => s + v[i], 0) / vectors.length);
+  return vectors[0].map(
+    (_, i) => vectors.reduce((s, v) => s + v[i], 0) / vectors.length
+  );
 }

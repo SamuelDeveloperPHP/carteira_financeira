@@ -14,7 +14,12 @@ export class NotificationsRepository {
    */
   async insert(
     q: Queryable,
-    n: { id: string; userId: string; kind: NotificationKind; movementId: string }
+    n: {
+      id: string;
+      userId: string;
+      kind: NotificationKind;
+      movementId: string;
+    }
   ) {
     await q.query(
       "INSERT INTO notifications(id,user_id,kind,movement_id) VALUES($1,$2,$3,$4) ON CONFLICT(user_id,movement_id) DO NOTHING",

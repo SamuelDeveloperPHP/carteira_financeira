@@ -33,7 +33,11 @@ export class SettingsRepository {
   async update(
     q: Queryable,
     userId: string,
-    changes: Partial<{ biometric: boolean; geolocation: boolean; face: boolean }>
+    changes: Partial<{
+      biometric: boolean;
+      geolocation: boolean;
+      face: boolean;
+    }>
   ) {
     await q.query(
       `INSERT INTO user_settings(user_id,biometric_enabled,geolocation_enabled,face_enabled)
@@ -43,7 +47,12 @@ export class SettingsRepository {
          geolocation_enabled=coalesce($3,user_settings.geolocation_enabled),
          face_enabled=coalesce($4,user_settings.face_enabled),
          updated_at=now()`,
-      [userId, changes.biometric ?? null, changes.geolocation ?? null, changes.face ?? null]
+      [
+        userId,
+        changes.biometric ?? null,
+        changes.geolocation ?? null,
+        changes.face ?? null,
+      ]
     );
   }
 
@@ -55,9 +64,14 @@ export class SettingsRepository {
     );
   }
 
-  async template(userId: string, q: Queryable = this.db.pool): Promise<string | undefined> {
+  async template(
+    userId: string,
+    q: Queryable = this.db.pool
+  ): Promise<string | undefined> {
     return (
-      await q.query("SELECT template FROM face_templates WHERE user_id=$1", [userId])
+      await q.query("SELECT template FROM face_templates WHERE user_id=$1", [
+        userId,
+      ])
     ).rows[0]?.template;
   }
 

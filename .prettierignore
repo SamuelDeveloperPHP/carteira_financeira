@@ -9,3 +9,5 @@ docs/
 *.md
 *.yaml
 *.sql
+*.css
+*.json

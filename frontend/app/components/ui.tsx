@@ -3,7 +3,13 @@ import { ReactNode, useState } from "react";
 
 // Rótulo + campo. O <label> envolve o input, então clicar no texto foca o campo
 // e leitores de tela associam os dois.
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+export function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
   return (
     <label className="field d-block">
       <span className="form-label d-block">{label}</span>

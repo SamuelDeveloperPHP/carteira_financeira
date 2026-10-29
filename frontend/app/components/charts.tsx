@@ -15,7 +15,11 @@ const MUTED = "#526777";
 export function compact(cents: number): string {
   const v = cents / 100;
   const abs = Math.abs(v);
-  const f = (n: number) => n.toFixed(n >= 10 ? 0 : 1).replace(".", ",").replace(/,0$/, "");
+  const f = (n: number) =>
+    n
+      .toFixed(n >= 10 ? 0 : 1)
+      .replace(".", ",")
+      .replace(/,0$/, "");
   if (abs >= 1_000_000) return `R$ ${f(v / 1_000_000)} mi`;
   if (abs >= 1_000) return `R$ ${f(v / 1_000)} mil`;
   return `R$ ${f(v)}`;
@@ -46,8 +50,20 @@ function Axes({ max, labels }: { max: number; labels: string[] }) {
         const y = PAD.top + innerH * (1 - t);
         return (
           <g key={t}>
-            <line x1={PAD.left} x2={W - PAD.right} y1={y} y2={y} stroke={GRID} />
-            <text x={PAD.left - 8} y={y + 4} textAnchor="end" fontSize="11" fill={MUTED}>
+            <line
+              x1={PAD.left}
+              x2={W - PAD.right}
+              y1={y}
+              y2={y}
+              stroke={GRID}
+            />
+            <text
+              x={PAD.left - 8}
+              y={y + 4}
+              textAnchor="end"
+              fontSize="11"
+              fill={MUTED}
+            >
               {compact(max * t)}
             </text>
           </g>
@@ -55,7 +71,14 @@ function Axes({ max, labels }: { max: number; labels: string[] }) {
       })}
       {labels.map((l, i) =>
         i % step === 0 ? (
-          <text key={i} x={PAD.left + slot * (i + 0.5)} y={H - 10} textAnchor="middle" fontSize="11" fill={MUTED}>
+          <text
+            key={i}
+            x={PAD.left + slot * (i + 0.5)}
+            y={H - 10}
+            textAnchor="middle"
+            fontSize="11"
+            fill={MUTED}
+          >
             {l}
           </text>
         ) : null
@@ -64,11 +87,18 @@ function Axes({ max, labels }: { max: number; labels: string[] }) {
   );
 }
 
-export type Point = { label: string; income: number; expense: number; balance: number };
+export type Point = {
+  label: string;
+  income: number;
+  expense: number;
+  balance: number;
+};
 
 /** Barras agrupadas: entradas (verde) e saídas (vermelho) por intervalo. */
 export function FlowChart({ points }: { points: Point[] }) {
-  const max = niceMax(Math.max(...points.flatMap(p => [p.income, p.expense]), 0));
+  const max = niceMax(
+    Math.max(...points.flatMap(p => [p.income, p.expense]), 0)
+  );
   const slot = innerW / Math.max(points.length, 1);
   const bar = Math.min(26, slot * 0.36);
   const h = (v: number) => (v / max) * innerH;
@@ -84,10 +114,24 @@ export function FlowChart({ points }: { points: Point[] }) {
         const cx = PAD.left + slot * (i + 0.5);
         return (
           <g key={i}>
-            <rect x={cx - bar - 1} y={PAD.top + innerH - h(p.income)} width={bar} height={h(p.income)} fill={GREEN} rx="2">
+            <rect
+              x={cx - bar - 1}
+              y={PAD.top + innerH - h(p.income)}
+              width={bar}
+              height={h(p.income)}
+              fill={GREEN}
+              rx="2"
+            >
               <title>{`${p.label}: entradas ${cash(p.income)}`}</title>
             </rect>
-            <rect x={cx + 1} y={PAD.top + innerH - h(p.expense)} width={bar} height={h(p.expense)} fill={RED} rx="2">
+            <rect
+              x={cx + 1}
+              y={PAD.top + innerH - h(p.expense)}
+              width={bar}
+              height={h(p.expense)}
+              fill={RED}
+              rx="2"
+            >
               <title>{`${p.label}: saídas ${cash(p.expense)}`}</title>
             </rect>
           </g>
@@ -119,9 +163,23 @@ export function BalanceChart({ points }: { points: Point[] }) {
     >
       <Axes max={max} labels={points.map(p => p.label)} />
       <polygon points={area} fill={GREEN} opacity="0.12" />
-      <polyline points={line} fill="none" stroke={GREEN} strokeWidth="2.5" strokeLinejoin="round" />
+      <polyline
+        points={line}
+        fill="none"
+        stroke={GREEN}
+        strokeWidth="2.5"
+        strokeLinejoin="round"
+      />
       {points.map((p, i) => (
-        <circle key={i} cx={coords[i][0]} cy={coords[i][1]} r="4" fill="#fff" stroke={GREEN} strokeWidth="2">
+        <circle
+          key={i}
+          cx={coords[i][0]}
+          cy={coords[i][1]}
+          r="4"
+          fill="#fff"
+          stroke={GREEN}
+          strokeWidth="2"
+        >
           <title>{`${p.label}: saldo ${cash(p.balance)}`}</title>
         </circle>
       ))}
@@ -145,7 +203,12 @@ export function HBars({
             <strong>{cash(r.value)}</strong>
           </div>
           <div className="hbars-track" aria-hidden="true">
-            <span style={{ width: `${(r.value / max) * 100}%`, background: r.color }} />
+            <span
+              style={{
+                width: `${(r.value / max) * 100}%`,
+                background: r.color,
+              }}
+            />
           </div>
           <small className="muted">{r.count} operação(ões)</small>
         </li>

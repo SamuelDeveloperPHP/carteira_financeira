@@ -30,7 +30,15 @@ export class LedgerRepository {
     return (
       await q.query(
         "INSERT INTO movements(id,kind,sender_id,recipient_id,amount,original_id,reference) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *",
-        [m.id, m.kind, m.senderId, m.recipientId, m.amount, m.originalId, m.reference]
+        [
+          m.id,
+          m.kind,
+          m.senderId,
+          m.recipientId,
+          m.amount,
+          m.originalId,
+          m.reference,
+        ]
       )
     ).rows[0];
   }

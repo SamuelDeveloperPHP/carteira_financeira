@@ -67,8 +67,23 @@ async function run() {
           return;
         }
         const id = randomUUID();
-        await users.insert(tx, { id, name, email, passwordHash, role: "master" });
-        await audit.record("admin.provisioned", null, id, ctx, {}, "success", null, tx);
+        await users.insert(tx, {
+          id,
+          name,
+          email,
+          passwordHash,
+          role: "master",
+        });
+        await audit.record(
+          "admin.provisioned",
+          null,
+          id,
+          ctx,
+          {},
+          "success",
+          null,
+          tx
+        );
       });
       console.log(
         "Master provisionado. Configure o segundo fator no primeiro login."
@@ -78,7 +93,12 @@ async function run() {
       // de idempotência: rodar o mesmo comando duas vezes credita uma só.
       const result = await app
         .get(DepositsService)
-        .deposit(process.argv[3], Number(process.argv[4]), process.argv[5], ctx);
+        .deposit(
+          process.argv[3],
+          Number(process.argv[4]),
+          process.argv[5],
+          ctx
+        );
       console.log(
         JSON.stringify({
           id: result.id,

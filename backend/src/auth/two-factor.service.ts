@@ -73,9 +73,7 @@ export class TwoFactorService {
       const user = await this.users.lockById(tx, auth.user_id);
       if (user.totp_enabled || auth.stage !== "setup")
         throw new ForbiddenException("Configuração indisponível.");
-      const secret = user.totp_secret
-        ? decrypt(user.totp_secret)
-        : newSecret();
+      const secret = user.totp_secret ? decrypt(user.totp_secret) : newSecret();
       // Primeira vez: grava o segredo já cifrado.
       if (!user.totp_secret)
         await this.users.setTotpSecret(tx, user.id, encrypt(secret));

@@ -40,7 +40,9 @@ export class SessionsRepository {
     );
   }
   /** Sessão ainda válida (não vencida) já junto com os dados do usuário, em uma só consulta. */
-  async findActiveWithUser(tokenHash: string): Promise<SessionUser | undefined> {
+  async findActiveWithUser(
+    tokenHash: string
+  ): Promise<SessionUser | undefined> {
     return (
       await this.db.pool.query(
         `SELECT s.*,u.name,u.email,u.role,u.totp_enabled FROM sessions s JOIN users u ON u.id=s.user_id WHERE token_hash=$1 AND expires_at>now()`,

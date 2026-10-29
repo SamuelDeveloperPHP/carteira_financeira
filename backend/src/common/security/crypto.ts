@@ -79,7 +79,9 @@ export function decrypt(value: string) {
     const [iv, tag, data] = value.split(".").map(v => Buffer.from(v, "hex"));
     const cipher = createDecipheriv("aes-256-gcm", encryptionKey(), iv);
     cipher.setAuthTag(tag);
-    return Buffer.concat([cipher.update(data), cipher.final()]).toString("utf8");
+    return Buffer.concat([cipher.update(data), cipher.final()]).toString(
+      "utf8"
+    );
   } catch {
     throw new Error("Encrypted value could not be read");
   }

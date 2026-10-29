@@ -47,12 +47,20 @@ export class BankingController {
 
   @Post("accounts")
   add(@Body() dto: CreateBankAccountDto, @Req() req: AppRequest) {
-    return this.banking.addAccount(sessionOf(req).user_id, dto, auditContext(req));
+    return this.banking.addAccount(
+      sessionOf(req).user_id,
+      dto,
+      auditContext(req)
+    );
   }
 
   @Delete("accounts/:id")
   remove(@Param("id", uuidPipe) id: string, @Req() req: AppRequest) {
-    return this.banking.removeAccount(sessionOf(req).user_id, id, auditContext(req));
+    return this.banking.removeAccount(
+      sessionOf(req).user_id,
+      id,
+      auditContext(req)
+    );
   }
 
   @Post("accounts/:id/pix-keys")
@@ -61,7 +69,12 @@ export class BankingController {
     @Body() dto: CreatePixKeyDto,
     @Req() req: AppRequest
   ) {
-    return this.banking.addKey(sessionOf(req).user_id, id, dto, auditContext(req));
+    return this.banking.addKey(
+      sessionOf(req).user_id,
+      id,
+      dto,
+      auditContext(req)
+    );
   }
 
   @Post("pix-keys/:id/confirm")
@@ -70,7 +83,12 @@ export class BankingController {
     @Body() dto: ConfirmPixKeyDto,
     @Req() req: AppRequest
   ) {
-    return this.banking.confirmKey(sessionOf(req).user_id, id, dto, auditContext(req));
+    return this.banking.confirmKey(
+      sessionOf(req).user_id,
+      id,
+      dto,
+      auditContext(req)
+    );
   }
 
   @Post("pix-keys/:id/resend")
@@ -79,7 +97,11 @@ export class BankingController {
     @Body() _body: EmptyBodyDto,
     @Req() req: AppRequest
   ) {
-    return this.banking.resendCode(sessionOf(req).user_id, id, auditContext(req));
+    return this.banking.resendCode(
+      sessionOf(req).user_id,
+      id,
+      auditContext(req)
+    );
   }
 
   @Patch("pix-keys/:id")
@@ -88,11 +110,20 @@ export class BankingController {
     @Body() dto: UpdatePixKeyDto,
     @Req() req: AppRequest
   ) {
-    return this.banking.updateKey(sessionOf(req).user_id, id, dto, auditContext(req));
+    return this.banking.updateKey(
+      sessionOf(req).user_id,
+      id,
+      dto,
+      auditContext(req)
+    );
   }
 
   @Delete("pix-keys/:id")
   removeKey(@Param("id", uuidPipe) id: string, @Req() req: AppRequest) {
-    return this.banking.removeKey(sessionOf(req).user_id, id, auditContext(req));
+    return this.banking.removeKey(
+      sessionOf(req).user_id,
+      id,
+      auditContext(req)
+    );
   }
 }

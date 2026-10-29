@@ -14,7 +14,15 @@
  * por isso o servidor combina o rosto com o link do e-mail na recuperação.
  */
 import { useEffect, useRef, useState } from "react";
-import { averageVectors, isFrontal, poseOf, Pose, Step, STEPS, stepDone } from "./pose";
+import {
+  averageVectors,
+  isFrontal,
+  poseOf,
+  Pose,
+  Step,
+  STEPS,
+  stepDone,
+} from "./pose";
 
 declare global {
   interface Window {
@@ -38,7 +46,10 @@ function loadFaceApi(): Promise<any> {
         const script = document.createElement("script");
         script.src = `${VENDOR}/face-api.js`;
         script.onload = () => resolve();
-        script.onerror = () => reject(new Error("Não foi possível carregar o reconhecimento facial."));
+        script.onerror = () =>
+          reject(
+            new Error("Não foi possível carregar o reconhecimento facial.")
+          );
         document.head.appendChild(script);
       });
     const api = window.faceapi;
@@ -67,7 +78,9 @@ export function FaceCapture({
   onCancel: () => void;
 }) {
   const video = useRef<HTMLVideoElement>(null);
-  const [phase, setPhase] = useState<"loading" | "front" | "steps" | "finished" | "error">("loading");
+  const [phase, setPhase] = useState<
+    "loading" | "front" | "steps" | "finished" | "error"
+  >("loading");
   const [index, setIndex] = useState(0);
   const [hint, setHint] = useState("Carregando o reconhecimento facial…");
   const [attempt, setAttempt] = useState(0); // incrementar reinicia tudo
@@ -82,10 +95,16 @@ export function FaceCapture({
         const faceapi = await loadFaceApi();
         if (stopped) return;
         if (!navigator.mediaDevices?.getUserMedia)
-          throw new Error("Este navegador não permite usar a câmera (é preciso HTTPS ou localhost).");
+          throw new Error(
+            "Este navegador não permite usar a câmera (é preciso HTTPS ou localhost)."
+          );
         setHint("Permita o uso da câmera…");
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+          video: {
+            facingMode: "user",
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+          },
           audio: false,
         });
         if (stopped) return;
@@ -95,7 +114,10 @@ export function FaceCapture({
         setPhase("front");
         setHint("Olhe de frente para a câmera.");
 
-        const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 });
+        const options = new faceapi.TinyFaceDetectorOptions({
+          inputSize: 320,
+          scoreThreshold: 0.5,
+        });
         let base: Pose | null = null;
         const vectors: number[][] = [];
         const done: Step[] = [];
@@ -108,7 +130,10 @@ export function FaceCapture({
           if (busy || stopped || el.readyState < 2) return;
           busy = true;
           try {
-            const faces = await faceapi.detectAllFaces(el, options).withFaceLandmarks().withFaceExpressions();
+            const faces = await faceapi
+              .detectAllFaces(el, options)
+              .withFaceLandmarks()
+              .withFaceExpressions();
             if (stopped) return;
             if (faces.length !== 1) {
               streak = 0;
@@ -128,7 +153,10 @@ export function FaceCapture({
                 setHint("Olhe de frente para a câmera.");
                 return;
               }
-              const full = await faceapi.detectSingleFace(el, options).withFaceLandmarks().withFaceDescriptor();
+              const full = await faceapi
+                .detectSingleFace(el, options)
+                .withFaceLandmarks()
+                .withFaceDescriptor();
               if (!full) return;
               vectors.push(Array.from(full.descriptor as Float32Array));
               if (vectors.length < FRONT_VECTORS) {
@@ -151,7 +179,8 @@ export function FaceCapture({
               setHint("Tempo esgotado nesta etapa. Tente novamente.");
               return;
             }
-            if (stepDone(step.id, pose, base, face.expressions.happy ?? 0)) streak++;
+            if (stepDone(step.id, pose, base, face.expressions.happy ?? 0))
+              streak++;
             else streak = 0;
             if (streak < FRAMES_TO_CONFIRM) return;
 
@@ -177,7 +206,9 @@ export function FaceCapture({
       } catch (e) {
         if (stopped) return;
         setPhase("error");
-        const denied = e instanceof DOMException && (e.name === "NotAllowedError" || e.name === "SecurityError");
+        const denied =
+          e instanceof DOMException &&
+          (e.name === "NotAllowedError" || e.name === "SecurityError");
         setHint(
           denied
             ? "Permissão da câmera negada. Libere a câmera nas configurações do navegador."
@@ -212,7 +243,16 @@ export function FaceCapture({
       </p>
       <ol className="face-steps" aria-label="Etapas da prova de vida">
         {STEPS.map((s, i) => (
-          <li key={s.id} className={i < index ? "done" : i === index && phase === "steps" ? "current" : ""}>
+          <li
+            key={s.id}
+            className={
+              i < index
+                ? "done"
+                : i === index && phase === "steps"
+                  ? "current"
+                  : ""
+            }
+          >
             {i < index ? "✓ " : ""}
             {s.text}
           </li>
@@ -220,11 +260,19 @@ export function FaceCapture({
       </ol>
       <div className="inline-actions">
         {phase === "error" && (
-          <button type="button" className="btn btn-primary" onClick={() => setAttempt(n => n + 1)}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setAttempt(n => n + 1)}
+          >
             Tentar novamente
           </button>
         )}
-        <button type="button" className="btn btn-outline-secondary" onClick={onCancel}>
+        <button
+          type="button"
+          className="btn btn-outline-secondary"
+          onClick={onCancel}
+        >
           {phase === "finished" ? "Fechar" : "Cancelar"}
         </button>
       </div>

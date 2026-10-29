@@ -74,11 +74,20 @@ export class BankingService {
       this.repo.listKeys(userId),
     ]);
     return {
-      items: accounts.map(a => this.accountView(a, keys.filter(k => k.bank_account_id === a.id))),
+      items: accounts.map(a =>
+        this.accountView(
+          a,
+          keys.filter(k => k.bank_account_id === a.id)
+        )
+      ),
     };
   }
 
-  async addAccount(userId: string, dto: CreateBankAccountDto, ctx: AuditContext) {
+  async addAccount(
+    userId: string,
+    dto: CreateBankAccountDto,
+    ctx: AuditContext
+  ) {
     await this.limiter.throttle(`bank-write:${userId}`, 30);
     const holder = holderDocument(dto.holderDocument);
     const id = randomUUID();
@@ -97,7 +106,16 @@ export class BankingService {
           accountType: dto.accountType,
           holderDocument: holder,
         });
-        await this.audit.record("bank.account.added", userId, id, ctx, { bankCode: dto.bankCode }, "success", null, tx);
+        await this.audit.record(
+          "bank.account.added",
+          userId,
+          id,
+          ctx,
+          { bankCode: dto.bankCode },
+          "success",
+          null,
+          tx
+        );
       });
     } catch (e: any) {
       // Violação de UNIQUE (banco + agência + conta): conta já cadastrada.
@@ -111,14 +129,29 @@ export class BankingService {
   async removeAccount(userId: string, id: string, ctx: AuditContext) {
     const removed = await this.db.transaction(async tx => {
       const ok = await this.repo.deleteAccount(tx, userId, id);
-      if (ok) await this.audit.record("bank.account.removed", userId, id, ctx, {}, "success", null, tx);
+      if (ok)
+        await this.audit.record(
+          "bank.account.removed",
+          userId,
+          id,
+          ctx,
+          {},
+          "success",
+          null,
+          tx
+        );
       return ok;
     });
     if (!removed) throw new NotFoundException("Conta não encontrada.");
     return { message: "Conta bancária removida, com as chaves Pix dela." };
   }
 
-  async addKey(userId: string, accountId: string, dto: CreatePixKeyDto, ctx: AuditContext) {
+  async addKey(
+    userId: string,
+    accountId: string,
+    dto: CreatePixKeyDto,
+    ctx: AuditContext
+  ) {
     await this.limiter.throttle(`pix-write:${userId}`, 20);
     const account = await this.repo.findAccount(userId, accountId);
     if (!account) throw new NotFoundException("Conta não encontrada.");
@@ -147,13 +180,19 @@ export class BankingService {
     }
 
     const id = randomUUID();
-    const code = needsOwnershipProof(dto.type) && decision.status === "awaiting_ownership" ? this.newCode() : null;
+    const code =
+      needsOwnershipProof(dto.type) && decision.status === "awaiting_ownership"
+        ? this.newCode()
+        : null;
     try {
       await this.db.transaction(async tx => {
         // Trava a conta: duas inclusões simultâneas não passam do limite de chaves.
         const locked = await this.repo.lockAccount(tx, userId, accountId);
         if (!locked) throw new NotFoundException("Conta não encontrada.");
-        if ((await this.repo.countKeys(tx, accountId)) >= maxKeysPerAccount(locked.holder_document))
+        if (
+          (await this.repo.countKeys(tx, accountId)) >=
+          maxKeysPerAccount(locked.holder_document)
+        )
           throw new UnprocessableEntityException(
             `Esta conta já tem o máximo de ${maxKeysPerAccount(locked.holder_document)} chaves Pix.`
           );
@@ -163,13 +202,25 @@ export class BankingService {
           userId,
           type: dto.type,
           value,
-          status: decision.status === "awaiting_ownership" ? "pending" : decision.status,
+          status:
+            decision.status === "awaiting_ownership"
+              ? "pending"
+              : decision.status,
           protocol: decision.protocol,
           reason: decision.status === "rejected" ? decision.reason : null,
           proofHash: code ? digest(code) : null,
           proofMinutes: code ? PIX_PROOF_MINUTES : null,
         });
-        await this.audit.record("pix.key.registered", userId, id, ctx, { type: dto.type, status: decision.status }, "success", null, tx);
+        await this.audit.record(
+          "pix.key.registered",
+          userId,
+          id,
+          ctx,
+          { type: dto.type, status: decision.status },
+          "success",
+          null,
+          tx
+        );
       });
     } catch (e: any) {
       if (e.code === "23505") throw this.duplicate();
@@ -180,33 +231,63 @@ export class BankingService {
     if (code) await this.deliver(dto.type, value, code, ctx);
     return {
       id,
-      status: decision.status === "awaiting_ownership" ? "pending" : decision.status,
+      status:
+        decision.status === "awaiting_ownership" ? "pending" : decision.status,
       message: this.registrationMessage(decision.status),
     };
   }
 
   /** Confere o código de posse e conclui o registro. */
-  async confirmKey(userId: string, keyId: string, dto: ConfirmPixKeyDto, ctx: AuditContext) {
+  async confirmKey(
+    userId: string,
+    keyId: string,
+    dto: ConfirmPixKeyDto,
+    ctx: AuditContext
+  ) {
     await this.limiter.throttle(`pix-proof:${userId}`, 10);
     const outcome = await this.db.transaction(async tx => {
       const key = await this.repo.lockKey(tx, userId, keyId);
       if (!key) throw new NotFoundException("Chave não encontrada.");
       if (key.status !== "pending" || !key.proof_hash)
-        throw new UnprocessableEntityException("Esta chave não aguarda confirmação.");
+        throw new UnprocessableEntityException(
+          "Esta chave não aguarda confirmação."
+        );
       if (key.proof_attempts >= PIX_PROOF_MAX_ATTEMPTS)
-        return { ok: false as const, reason: "Tentativas esgotadas. Solicite um novo código." };
+        return {
+          ok: false as const,
+          reason: "Tentativas esgotadas. Solicite um novo código.",
+        };
       if (!key.proof_expires_at || key.proof_expires_at.getTime() < Date.now())
-        return { ok: false as const, reason: "Código expirado. Solicite um novo." };
-      if (digest(dto.code) !== key.proof_hash) return { ok: false as const, reason: "Código incorreto.", attempt: key.id };
+        return {
+          ok: false as const,
+          reason: "Código expirado. Solicite um novo.",
+        };
+      if (digest(dto.code) !== key.proof_hash)
+        return {
+          ok: false as const,
+          reason: "Código incorreto.",
+          attempt: key.id,
+        };
       const decision = await this.directory.confirm(key.protocol);
-      if (decision.status !== "approved") return { ok: false as const, reason: "Chave recusada pelo diretório." };
+      if (decision.status !== "approved")
+        return { ok: false as const, reason: "Chave recusada pelo diretório." };
       await this.repo.approveKey(tx, key.id);
-      await this.audit.record("pix.key.approved", userId, key.id, ctx, { type: key.key_type }, "success", null, tx);
+      await this.audit.record(
+        "pix.key.approved",
+        userId,
+        key.id,
+        ctx,
+        { type: key.key_type },
+        "success",
+        null,
+        tx
+      );
       return { ok: true as const };
     });
     if (!outcome.ok) {
       // A tentativa errada é gravada FORA da transação para não ser desfeita por ela.
-      if ("attempt" in outcome && outcome.attempt) await this.repo.addProofAttempt(outcome.attempt);
+      if ("attempt" in outcome && outcome.attempt)
+        await this.repo.addProofAttempt(outcome.attempt);
       throw new UnprocessableEntityException(outcome.reason);
     }
     return { message: "Chave Pix aprovada." };
@@ -220,9 +301,20 @@ export class BankingService {
       const row = await this.repo.lockKey(tx, userId, keyId);
       if (!row) throw new NotFoundException("Chave não encontrada.");
       if (row.status !== "pending" || !needsOwnershipProof(row.key_type))
-        throw new UnprocessableEntityException("Esta chave não aguarda confirmação.");
+        throw new UnprocessableEntityException(
+          "Esta chave não aguarda confirmação."
+        );
       await this.repo.renewProof(tx, row.id, digest(code), PIX_PROOF_MINUTES);
-      await this.audit.record("pix.key.code_resent", userId, row.id, ctx, {}, "success", null, tx);
+      await this.audit.record(
+        "pix.key.code_resent",
+        userId,
+        row.id,
+        ctx,
+        {},
+        "success",
+        null,
+        tx
+      );
       return row;
     });
     await this.deliver(key.key_type, key.key_value, code, ctx);
@@ -235,19 +327,35 @@ export class BankingService {
    * o código de posse. A chave aleatória não se edita (o valor é gerado pelo
    * sistema): remova e crie outra. A chave continua na mesma conta.
    */
-  async updateKey(userId: string, keyId: string, dto: UpdatePixKeyDto, ctx: AuditContext) {
+  async updateKey(
+    userId: string,
+    keyId: string,
+    dto: UpdatePixKeyDto,
+    ctx: AuditContext
+  ) {
     await this.limiter.throttle(`pix-write:${userId}`, 20);
-    const current = await this.db.transaction(async tx => this.repo.lockKey(tx, userId, keyId));
+    const current = await this.db.transaction(async tx =>
+      this.repo.lockKey(tx, userId, keyId)
+    );
     if (!current) throw new NotFoundException("Chave não encontrada.");
     if (current.key_type === "evp")
       throw new UnprocessableEntityException(
         "A chave aleatória não pode ser editada. Remova-a e crie outra."
       );
-    const account = await this.repo.findAccount(userId, current.bank_account_id);
+    const account = await this.repo.findAccount(
+      userId,
+      current.bank_account_id
+    );
     if (!account) throw new NotFoundException("Conta não encontrada.");
-    const value = normalizePixKey(current.key_type, dto.value, account.holder_document);
+    const value = normalizePixKey(
+      current.key_type,
+      dto.value,
+      account.holder_document
+    );
     if (value === current.key_value)
-      throw new UnprocessableEntityException("Informe um valor diferente do atual.");
+      throw new UnprocessableEntityException(
+        "Informe um valor diferente do atual."
+      );
     if (await this.repo.keyExists(value)) throw this.duplicate();
 
     let decision;
@@ -262,16 +370,22 @@ export class BankingService {
       });
     } catch (e) {
       logUnexpected("pix.directory.failed", ctx.correlationId, e);
-      throw new ServiceUnavailableException("Diretório do Pix indisponível. Tente novamente em instantes.");
+      throw new ServiceUnavailableException(
+        "Diretório do Pix indisponível. Tente novamente em instantes."
+      );
     }
-    const code = decision.status === "awaiting_ownership" ? this.newCode() : null;
-    const status = decision.status === "awaiting_ownership" ? "pending" : decision.status;
+    const code =
+      decision.status === "awaiting_ownership" ? this.newCode() : null;
+    const status =
+      decision.status === "awaiting_ownership" ? "pending" : decision.status;
     try {
       await this.db.transaction(async tx => {
         // Relê com bloqueio: se a chave foi removida ou trocada no meio do caminho, recusa.
         const locked = await this.repo.lockKey(tx, userId, keyId);
         if (!locked || locked.key_value !== current.key_value)
-          throw new ConflictException("A chave foi alterada. Atualize a página e tente de novo.");
+          throw new ConflictException(
+            "A chave foi alterada. Atualize a página e tente de novo."
+          );
         await this.repo.updateKey(tx, keyId, {
           value,
           status,
@@ -280,7 +394,16 @@ export class BankingService {
           proofHash: code ? digest(code) : null,
           proofMinutes: code ? PIX_PROOF_MINUTES : null,
         });
-        await this.audit.record("pix.key.updated", userId, keyId, ctx, { type: current.key_type, status }, "success", null, tx);
+        await this.audit.record(
+          "pix.key.updated",
+          userId,
+          keyId,
+          ctx,
+          { type: current.key_type, status },
+          "success",
+          null,
+          tx
+        );
       });
     } catch (e: any) {
       if (e.code === "23505") throw this.duplicate();
@@ -301,7 +424,17 @@ export class BankingService {
   async removeKey(userId: string, keyId: string, ctx: AuditContext) {
     const removed = await this.db.transaction(async tx => {
       const ok = await this.repo.deleteKey(tx, userId, keyId);
-      if (ok) await this.audit.record("pix.key.removed", userId, keyId, ctx, {}, "success", null, tx);
+      if (ok)
+        await this.audit.record(
+          "pix.key.removed",
+          userId,
+          keyId,
+          ctx,
+          {},
+          "success",
+          null,
+          tx
+        );
       return ok;
     });
     if (!removed) throw new NotFoundException("Chave não encontrada.");
@@ -340,7 +473,12 @@ export class BankingService {
   }
 
   /** Falha no envio não derruba o cadastro: o usuário pode pedir reenvio. */
-  private async deliver(type: PixKeyRow["key_type"], value: string, code: string, ctx: AuditContext) {
+  private async deliver(
+    type: PixKeyRow["key_type"],
+    value: string,
+    code: string,
+    ctx: AuditContext
+  ) {
     try {
       await this.directory.sendOwnershipCode(type, value, code);
     } catch (e) {

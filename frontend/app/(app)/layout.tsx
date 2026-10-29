@@ -113,10 +113,18 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               }
             >
               <BellIcon />
-              {unread > 0 && <span className="bell-badge">{unread > 99 ? "99+" : unread}</span>}
+              {unread > 0 && (
+                <span className="bell-badge">
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              )}
             </Link>
           )}
-          <button className="btn btn-outline-secondary" disabled={busy} onClick={logout}>
+          <button
+            className="btn btn-outline-secondary"
+            disabled={busy}
+            onClick={logout}
+          >
             Sair
           </button>
         </div>
@@ -129,43 +137,53 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={inSection(pathname, item.href) ? "active" : ""}
-                aria-current={inSection(pathname, item.href) ? "page" : undefined}
+                aria-current={
+                  inSection(pathname, item.href) ? "page" : undefined
+                }
               >
                 {item.title}
-                {item.badge && unread > 0 && <span className="nav-badge">{unread}</span>}
+                {item.badge && unread > 0 && (
+                  <span className="nav-badge">{unread}</span>
+                )}
               </Link>
             ))}
           </nav>
           <footer>
-            {user.role === "master" ? "Perfil master · Somente leitura" : "Conta pessoal"}
+            {user.role === "master"
+              ? "Perfil master · Somente leitura"
+              : "Conta pessoal"}
             <br />
             Sessão protegida por 2FA
           </footer>
         </aside>
         <main className="main">
-        {codes.length > 0 && (
-          <section className="panel">
-            <h2>Guarde seus códigos de recuperação</h2>
-            <p>
-              Estes códigos são exibidos uma única vez. Cada um substitui o código do autenticador em um
-              login. Guarde-os fora deste dispositivo.
-            </p>
-            <ul className="codes">
-              {codes.map(c => (
-                <li key={c}>{c}</li>
-              ))}
-            </ul>
-            <div className="inline-actions">
-              <button className="btn btn-primary" onClick={downloadCodes}>
-                Baixar códigos
-              </button>
-              <button className="btn btn-outline-secondary" onClick={() => setCodes([])}>
-                Já guardei os códigos
-              </button>
-            </div>
-          </section>
-        )}
-        {children}
+          {codes.length > 0 && (
+            <section className="panel">
+              <h2>Guarde seus códigos de recuperação</h2>
+              <p>
+                Estes códigos são exibidos uma única vez. Cada um substitui o
+                código do autenticador em um login. Guarde-os fora deste
+                dispositivo.
+              </p>
+              <ul className="codes">
+                {codes.map(c => (
+                  <li key={c}>{c}</li>
+                ))}
+              </ul>
+              <div className="inline-actions">
+                <button className="btn btn-primary" onClick={downloadCodes}>
+                  Baixar códigos
+                </button>
+                <button
+                  className="btn btn-outline-secondary"
+                  onClick={() => setCodes([])}
+                >
+                  Já guardei os códigos
+                </button>
+              </div>
+            </section>
+          )}
+          {children}
         </main>
       </div>
     </>

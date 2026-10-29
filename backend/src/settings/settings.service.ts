@@ -42,7 +42,10 @@ export class SettingsService {
         userId,
         userId,
         ctx,
-        { biometric: dto.biometricEnabled, geolocation: dto.geolocationEnabled },
+        {
+          biometric: dto.biometricEnabled,
+          geolocation: dto.geolocationEnabled,
+        },
         "success",
         null,
         tx

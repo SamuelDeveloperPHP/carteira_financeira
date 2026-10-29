@@ -62,8 +62,12 @@ export async function confirmAction(options: {
 // (e-mail do destinatário, nome) tem de passar por aqui antes de entrar no
 // texto, senão seria possível injetar marcação (XSS) no diálogo.
 export function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, c =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!
+  return value.replace(
+    /[&<>"']/g,
+    c =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ]!
   );
 }
 
@@ -83,7 +87,10 @@ export async function askInput(options: {
     text: options.text,
     input: options.password ? "password" : "text",
     inputLabel: options.label,
-    inputAttributes: { autocomplete: options.password ? "current-password" : "one-time-code", maxlength: "128" },
+    inputAttributes: {
+      autocomplete: options.password ? "current-password" : "one-time-code",
+      maxlength: "128",
+    },
     showCancelButton: true,
     confirmButtonText: options.confirmText ?? "Confirmar",
     cancelButtonText: "Cancelar",

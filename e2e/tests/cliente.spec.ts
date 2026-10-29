@@ -23,7 +23,11 @@ const totp = (secret: string) =>
   }).generate();
 
 /** Cria a conta, entra, cadastra o autenticador e chega à carteira. */
-async function signUpAndEnter(browser: Browser, name: string, email: string): Promise<Page> {
+async function signUpAndEnter(
+  browser: Browser,
+  name: string,
+  email: string
+): Promise<Page> {
   // Geolocalização concedida: o login registra a posição na trilha de acesso.
   const context = await browser.newContext({
     geolocation: { latitude: -15.7939, longitude: -47.8828, accuracy: 25 },
@@ -32,17 +36,27 @@ async function signUpAndEnter(browser: Browser, name: string, email: string): Pr
   const page = await context.newPage();
   // O gateway envia uma CSP restrita: qualquer recurso bloqueado aparece aqui.
   page.on("console", msg => {
-    if (/Content Security Policy|Refused to/i.test(msg.text())) violations.push(msg.text());
+    if (/Content Security Policy|Refused to/i.test(msg.text()))
+      violations.push(msg.text());
   });
   await page.goto("/");
-  await page.locator(".auth-tabs").getByRole("button", { name: "Criar conta" }).click();
+  await page
+    .locator(".auth-tabs")
+    .getByRole("button", { name: "Criar conta" })
+    .click();
   await page.locator("input[autocomplete=name]").fill(name);
   await page.locator("input[type=email]").fill(email);
   await page.locator("input[type=password]").fill(PASSWORD);
-  await page.locator("form").getByRole("button", { name: "Criar conta" }).click();
+  await page
+    .locator("form")
+    .getByRole("button", { name: "Criar conta" })
+    .click();
   await expect(page.locator(".swal2-toast")).toContainText("Conta criada");
 
-  await page.locator(".auth-tabs").getByRole("button", { name: "Entrar" }).click();
+  await page
+    .locator(".auth-tabs")
+    .getByRole("button", { name: "Entrar" })
+    .click();
   await page.locator("input[type=email]").fill(email);
   await page.locator("input[type=password]").fill(PASSWORD);
   await page.locator("form").getByRole("button", { name: "Continuar" }).click();
@@ -56,12 +70,17 @@ async function signUpAndEnter(browser: Browser, name: string, email: string): Pr
   // Depois do login o cliente cai em Relatórios; a carteira é um clique no menu.
   await expect(page).toHaveURL(/\/relatorios$/);
   await page.getByRole("button", { name: "Já guardei os códigos" }).click();
-  await page.locator(".sidebar").getByRole("link", { name: "Minha carteira" }).click();
+  await page
+    .locator(".sidebar")
+    .getByRole("link", { name: "Minha carteira" })
+    .click();
   await expect(page).toHaveURL(/\/carteira$/);
   return page;
 }
 
-test("cliente: cadastro, saldo, transferência, notificação e devolução", async ({ browser }) => {
+test("cliente: cadastro, saldo, transferência, notificação e devolução", async ({
+  browser,
+}) => {
   const id = Date.now().toString(36);
   const emailA = `ana-${id}@example.test`;
   const emailB = `bia-${id}@example.test`;
@@ -82,13 +101,17 @@ test("cliente: cadastro, saldo, transferência, notificação e devolução", as
     await expect(ana.locator(".balance")).toHaveText(money("100,00"));
   });
 
-  const transferForm = ana.locator("form").filter({ has: ana.locator("input[type=email]") });
+  const transferForm = ana
+    .locator("form")
+    .filter({ has: ana.locator("input[type=email]") });
 
   await test.step("saldo insuficiente é recusado sem alterar o saldo", async () => {
     await transferForm.locator("input[type=email]").fill(emailB);
     await transferForm.locator("input").nth(1).fill("999,00");
     await transferForm.getByRole("button", { name: "Transferir" }).click();
-    await expect(ana.locator(".swal2-popup")).toContainText("Saldo insuficiente");
+    await expect(ana.locator(".swal2-popup")).toContainText(
+      "Saldo insuficiente"
+    );
     await ana.locator(".swal2-confirm").click();
     await expect(ana.locator(".balance")).toHaveText(money("100,00"));
   });
@@ -104,7 +127,9 @@ test("cliente: cadastro, saldo, transferência, notificação e devolução", as
   await test.step("Ana transfere R$ 30,00 para Bia", async () => {
     await transferForm.getByRole("button", { name: "Transferir" }).click();
     await ana.locator(".swal2-confirm").click();
-    await expect(ana.locator(".swal2-toast")).toContainText("Transferência concluída");
+    await expect(ana.locator(".swal2-toast")).toContainText(
+      "Transferência concluída"
+    );
     await expect(ana.locator(".balance")).toHaveText(money("70,00"));
     await expect(ana.locator("tbody tr").first()).toContainText("-R$");
   });
@@ -113,20 +138,30 @@ test("cliente: cadastro, saldo, transferência, notificação e devolução", as
     await bia.reload();
     await expect(bia.locator(".balance")).toHaveText(money("30,00"));
     await expect(bia.locator(".bell-badge")).toHaveText("1");
-    await bia.locator(".sidebar").getByRole("link", { name: /Notificações/ }).click();
+    await bia
+      .locator(".sidebar")
+      .getByRole("link", { name: /Notificações/ })
+      .click();
     await expect(bia).toHaveURL(/\/notificacoes$/);
-    await expect(bia.locator(".notice-list")).toContainText("enviou R$ 30,00 para você");
+    await expect(bia.locator(".notice-list")).toContainText(
+      "enviou R$ 30,00 para você"
+    );
     await bia.getByRole("button", { name: "Marcar como lida" }).click();
     await expect(bia.getByText("Nenhuma notificação nova")).toBeVisible();
     await expect(bia.locator(".bell-badge")).toHaveCount(0);
   });
 
   await test.step("Bia devolve a transferência (integral e única)", async () => {
-    await bia.locator(".sidebar").getByRole("link", { name: "Minha carteira" }).click();
+    await bia
+      .locator(".sidebar")
+      .getByRole("link", { name: "Minha carteira" })
+      .click();
     await bia.getByRole("button", { name: "Devolver" }).click();
     await expect(bia.locator(".swal2-popup")).toContainText("integral");
     await bia.locator(".swal2-confirm").click();
-    await expect(bia.locator(".swal2-toast")).toContainText("devolvido integralmente");
+    await expect(bia.locator(".swal2-toast")).toContainText(
+      "devolvido integralmente"
+    );
     await expect(bia.locator(".balance")).toHaveText(money("0,00"));
     await expect(bia.getByRole("button", { name: "Devolver" })).toHaveCount(0);
   });
@@ -135,19 +170,32 @@ test("cliente: cadastro, saldo, transferência, notificação e devolução", as
     await ana.reload();
     await expect(ana.locator(".balance")).toHaveText(money("100,00"));
     await expect(ana.locator(".bell-badge")).toHaveText("1");
-    await ana.locator(".sidebar").getByRole("link", { name: /Notificações/ }).click();
-    await expect(ana.locator(".notice-list")).toContainText("devolveu R$ 30,00");
+    await ana
+      .locator(".sidebar")
+      .getByRole("link", { name: /Notificações/ })
+      .click();
+    await expect(ana.locator(".notice-list")).toContainText(
+      "devolveu R$ 30,00"
+    );
   });
 
   await test.step("os relatórios refletem as movimentações", async () => {
-    await ana.locator(".sidebar").getByRole("link", { name: "Relatórios" }).click();
+    await ana
+      .locator(".sidebar")
+      .getByRole("link", { name: "Relatórios" })
+      .click();
     await expect(ana).toHaveURL(/\/relatorios$/);
     await expect(ana.locator(".metric-grid")).toContainText("Entradas");
-    await expect(ana.locator(".suggestions")).toContainText("Você recebeu devoluções");
+    await expect(ana.locator(".suggestions")).toContainText(
+      "Você recebeu devoluções"
+    );
   });
 
   await test.step("a trilha de acesso registra o login com localização", async () => {
-    await ana.locator(".sidebar").getByRole("link", { name: "Meu perfil" }).click();
+    await ana
+      .locator(".sidebar")
+      .getByRole("link", { name: "Meu perfil" })
+      .click();
     await ana.getByRole("link", { name: "Trilha de acesso" }).click();
     await expect(ana).toHaveURL(/\/perfil\/acessos$/);
     await expect(ana.getByText("Localização registrada").first()).toBeVisible();
@@ -162,7 +210,9 @@ test("cliente: cadastro, saldo, transferência, notificação e devolução", as
     await expect(ana).toHaveURL(/\/$/);
     await ana.goto("/carteira");
     await expect(ana).toHaveURL(/\/$/);
-    await expect(ana.getByRole("heading", { name: "Acesse sua carteira" })).toBeVisible();
+    await expect(
+      ana.getByRole("heading", { name: "Acesse sua carteira" })
+    ).toBeVisible();
   });
 
   await test.step("a política de segurança de conteúdo (CSP) não bloqueou nada", async () => {
@@ -174,9 +224,16 @@ test("cliente: cadastro, saldo, transferência, notificação e devolução", as
 });
 
 test("rotas protegidas redirecionam quem não entrou", async ({ page }) => {
-  for (const path of ["/carteira", "/relatorios", "/perfil/bancario", "/contas"]) {
+  for (const path of [
+    "/carteira",
+    "/relatorios",
+    "/perfil/bancario",
+    "/contas",
+  ]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("heading", { name: "Acesse sua carteira" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Acesse sua carteira" })
+    ).toBeVisible();
   }
 });

@@ -32,8 +32,12 @@ export const FaceDescriptorField = () =>
 
 /** Alteração das preferências simples. Campos opcionais: só o que vier é alterado. */
 export class UpdateSettingsDto {
-  @IsOptional() @IsBoolean({ message: "Valor inválido." }) biometricEnabled?: boolean;
-  @IsOptional() @IsBoolean({ message: "Valor inválido." }) geolocationEnabled?: boolean;
+  @IsOptional()
+  @IsBoolean({ message: "Valor inválido." })
+  biometricEnabled?: boolean;
+  @IsOptional()
+  @IsBoolean({ message: "Valor inválido." })
+  geolocationEnabled?: boolean;
 }
 
 /** Cadastro facial: senha (reautenticação) + vetor + etapas de prova de vida cumpridas. */

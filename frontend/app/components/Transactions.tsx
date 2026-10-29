@@ -44,7 +44,9 @@ export function Transactions({
                   {m.refund_id && <span className="tag">Devolvida</span>}
                 </td>
                 <td>
-                  {Number(m.delta) > 0 ? m.sender_name || "Operador da demonstração" : m.recipient_name}
+                  {Number(m.delta) > 0
+                    ? m.sender_name || "Operador da demonstração"
+                    : m.recipient_name}
                   <small className="d-block">
                     {Number(m.delta) > 0 ? m.sender_email : m.recipient_email}
                   </small>
@@ -56,10 +58,15 @@ export function Transactions({
                 <td className="amount">{cash(m.balance_after)}</td>
                 <td>
                   {admin ? (
-                    <button className="btn btn-sm btn-outline-secondary" onClick={() => onTrace?.(m)}>
+                    <button
+                      className="btn btn-sm btn-outline-secondary"
+                      onClick={() => onTrace?.(m)}
+                    >
                       Rastrear
                     </button>
-                  ) : m.kind === "transfer" && m.recipient_id === userId && !m.refund_id ? (
+                  ) : m.kind === "transfer" &&
+                    m.recipient_id === userId &&
+                    !m.refund_id ? (
                     <button
                       disabled={busy}
                       className="btn btn-sm btn-outline-secondary"

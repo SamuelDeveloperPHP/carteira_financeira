@@ -244,7 +244,10 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
         // Teto por operação, valores inválidos e ausência de chave.
         const tooMuch = await add(1000001, randomUUID());
         assert.equal(tooMuch.status, 400);
-        assert.equal(tooMuch.data.message, "O valor máximo por adição é R$ 10.000,00.");
+        assert.equal(
+          tooMuch.data.message,
+          "O valor máximo por adição é R$ 10.000,00."
+        );
         for (const amount of [0, -1, 1.5])
           assert.equal((await add(amount, randomUUID())).status, 400);
         assert.equal(
@@ -313,29 +316,44 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
         // Outra pessoa não consegue ler nem marcar o aviso alheio.
         const mine = received.items[0].id;
         assert.equal(
-          (await call(`/notifications/${mine}/read`, "POST", {}, n1.cookie)).status,
+          (await call(`/notifications/${mine}/read`, "POST", {}, n1.cookie))
+            .status,
           404
         );
         assert.equal(await count(n2), 2);
 
         // Marcar como lida: some da lista e o contador cai. Repetir não dá erro.
-        const read = await call(`/notifications/${mine}/read`, "POST", {}, n2.cookie);
+        const read = await call(
+          `/notifications/${mine}/read`,
+          "POST",
+          {},
+          n2.cookie
+        );
         assert.equal(read.status, 201);
         assert.equal(read.data.message, "Notificação marcada como lida.");
         assert.equal(await count(n2), 1);
         assert(!(await list(n2)).data.items.some(i => i.id === mine));
         assert.equal(
-          (await call(`/notifications/${mine}/read`, "POST", {}, n2.cookie)).status,
+          (await call(`/notifications/${mine}/read`, "POST", {}, n2.cookie))
+            .status,
           201
         );
 
         // Corpo extra e id inválido são recusados; sem sessão não lê.
         assert.equal(
-          (await call(`/notifications/${mine}/read`, "POST", { x: 1 }, n2.cookie)).status,
+          (
+            await call(
+              `/notifications/${mine}/read`,
+              "POST",
+              { x: 1 },
+              n2.cookie
+            )
+          ).status,
           400
         );
         assert.equal(
-          (await call("/notifications/nao-e-uuid/read", "POST", {}, n2.cookie)).status,
+          (await call("/notifications/nao-e-uuid/read", "POST", {}, n2.cookie))
+            .status,
           400
         );
         assert.equal((await call("/notifications", "GET")).status, 401);
@@ -352,10 +370,18 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
         const back = (await list(n1)).data;
         assert.equal(back.unread, 1);
         assert.equal(back.items[0].kind, "refund_received");
-        assert.match(back.items[0].message, /devolveu R\$ 10,00 da transferência que você enviou\./);
+        assert.match(
+          back.items[0].message,
+          /devolveu R\$ 10,00 da transferência que você enviou\./
+        );
 
         // Marcar todas como lidas esvazia a lista de n2 (restava 1 aviso).
-        const all = await call("/notifications/read-all", "POST", {}, n2.cookie);
+        const all = await call(
+          "/notifications/read-all",
+          "POST",
+          {},
+          n2.cookie
+        );
         assert.equal(all.data.updated, 1);
         assert.equal((await list(n2)).data.items.length, 0);
         assert.equal(await count(n2), 0);
@@ -536,9 +562,15 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
         }
         assert.equal(cookies.length, 7);
         for (const old of cookies.slice(0, 2))
-          assert.equal((await call("/wallet", "GET", undefined, old)).status, 401);
+          assert.equal(
+            (await call("/wallet", "GET", undefined, old)).status,
+            401
+          );
         for (const live of cookies.slice(2))
-          assert.equal((await call("/wallet", "GET", undefined, live)).status, 200);
+          assert.equal(
+            (await call("/wallet", "GET", undefined, live)).status,
+            200
+          );
       }
     );
     await t.test(
@@ -736,7 +768,8 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
         const ip = { "X-Forwarded-For": "192.0.2.200" };
         const sent = [];
         const mailer = app.get(mail.MAIL_PROVIDER);
-        mailer.sendPasswordReset = async (to, token) => sent.push({ to, token });
+        mailer.sendPasswordReset = async (to, token) =>
+          sent.push({ to, token });
         const ask = email =>
           call("/auth/forgot-password", "POST", { email }, "", undefined, ip);
         const reset = (token, password) =>
@@ -780,15 +813,29 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
           401
         );
         assert.equal((await reset(first, newPass)).status, 400);
-        const old = await call("/auth/login", "POST", {
-          email: d.email,
-          password: pass,
-        }, "", undefined, ip);
+        const old = await call(
+          "/auth/login",
+          "POST",
+          {
+            email: d.email,
+            password: pass,
+          },
+          "",
+          undefined,
+          ip
+        );
         assert.equal(old.status, 401);
-        const fresh = await call("/auth/login", "POST", {
-          email: d.email,
-          password: newPass,
-        }, "", undefined, ip);
+        const fresh = await call(
+          "/auth/login",
+          "POST",
+          {
+            email: d.email,
+            password: newPass,
+          },
+          "",
+          undefined,
+          ip
+        );
         // O segundo fator continua obrigatório após redefinir a senha.
         assert.equal(fresh.data.stage, "challenge");
         assert.equal(
@@ -829,7 +876,14 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
         const d = await account("Perfil");
         const other = await account("Outro");
         const login = async (password = pass, location) => {
-          const l = await call("/auth/login", "POST", { email: d.email, password, location }, "", undefined, { "X-Forwarded-For": "192.0.2.202" });
+          const l = await call(
+            "/auth/login",
+            "POST",
+            { email: d.email, password, location },
+            "",
+            undefined,
+            { "X-Forwarded-For": "192.0.2.202" }
+          );
           assert.equal(l.status, 201);
           return l;
         };
@@ -848,51 +902,100 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
         const map = await call("/access/map", "GET", undefined, d.cookie);
         assert.equal(map.data.items.length, 1);
         // Usuários só enxergam os próprios acessos.
-        assert.equal((await call("/access", "GET", undefined, other.cookie)).data.items.length, 1);
+        assert.equal(
+          (await call("/access", "GET", undefined, other.cookie)).data.items
+            .length,
+          1
+        );
         assert.notEqual(
-          (await call("/access", "GET", undefined, other.cookie)).data.items[0].id,
+          (await call("/access", "GET", undefined, other.cookie)).data.items[0]
+            .id,
           first.id
         );
         // Logout: o acesso é encerrado com o motivo e a duração.
         const second = await login();
-        const verified = await call("/auth/verify", "POST", { code: d.recovery[2] }, second.cookie);
+        const verified = await call(
+          "/auth/verify",
+          "POST",
+          { code: d.recovery[2] },
+          second.cookie
+        );
         assert.equal(verified.status, 201);
-        assert.equal((await call("/auth/logout", "POST", {}, verified.cookie)).status, 201);
+        assert.equal(
+          (await call("/auth/logout", "POST", {}, verified.cookie)).status,
+          201
+        );
         trail = await call("/access", "GET", undefined, d.cookie);
         assert.equal(trail.data.items.length, 2);
         const closed = trail.data.items.find(i => !i.active);
         assert.equal(closed.endReason, "logout");
         assert(closed.endedAt && closed.durationSeconds >= 0);
         // A trilha só aceita o encerramento: nada é reescrito nem apagado.
-        await assert.rejects(db.pool.query("UPDATE access_log SET ip='x' WHERE id=$1", [first.id]));
-        await assert.rejects(db.pool.query("UPDATE access_log SET ended_at=now() WHERE id=$1", [closed.id]));
-        await assert.rejects(db.pool.query("DELETE FROM access_log WHERE id=$1", [first.id]));
+        await assert.rejects(
+          db.pool.query("UPDATE access_log SET ip='x' WHERE id=$1", [first.id])
+        );
+        await assert.rejects(
+          db.pool.query("UPDATE access_log SET ended_at=now() WHERE id=$1", [
+            closed.id,
+          ])
+        );
+        await assert.rejects(
+          db.pool.query("DELETE FROM access_log WHERE id=$1", [first.id])
+        );
 
         // ---- Preferências -------------------------------------------------
         assert.deepEqual(
           (await call("/settings", "GET", undefined, d.cookie)).data,
-          { biometricEnabled: false, geolocationEnabled: true, faceEnabled: false }
+          {
+            biometricEnabled: false,
+            geolocationEnabled: true,
+            faceEnabled: false,
+          }
         );
-        assert.equal((await call("/settings", "PATCH", { admin: true }, d.cookie)).status, 400);
-        const saved = await call("/settings", "PATCH", { biometricEnabled: true, geolocationEnabled: false }, d.cookie);
+        assert.equal(
+          (await call("/settings", "PATCH", { admin: true }, d.cookie)).status,
+          400
+        );
+        const saved = await call(
+          "/settings",
+          "PATCH",
+          { biometricEnabled: true, geolocationEnabled: false },
+          d.cookie
+        );
         assert.equal(saved.status, 200);
         assert.equal(saved.data.biometricEnabled, true);
         // Com a geolocalização desligada, o servidor descarta a localização enviada.
         const noGeo = await login(pass, {
-          status: "granted", latitude: 10, longitude: 10, accuracy: 5, capturedAt: new Date().toISOString(),
+          status: "granted",
+          latitude: 10,
+          longitude: 10,
+          accuracy: 5,
+          capturedAt: new Date().toISOString(),
         });
-        const noGeoVerified = await call("/auth/verify", "POST", { code: d.recovery[3] }, noGeo.cookie);
+        const noGeoVerified = await call(
+          "/auth/verify",
+          "POST",
+          { code: d.recovery[3] },
+          noGeo.cookie
+        );
         assert.equal(noGeoVerified.status, 201);
-        const latest = (await call("/access", "GET", undefined, noGeoVerified.cookie)).data.items[0];
+        const latest = (
+          await call("/access", "GET", undefined, noGeoVerified.cookie)
+        ).data.items[0];
         assert.equal(latest.location.status, "disabled");
         assert.equal(latest.location.latitude, undefined);
         d.cookie = noGeoVerified.cookie;
         // O master não usa estas rotas.
-        assert.equal((await call("/settings", "GET", undefined, master.cookie)).status, 403);
+        assert.equal(
+          (await call("/settings", "GET", undefined, master.cookie)).status,
+          403
+        );
 
         // ---- Dados bancários e chaves Pix ----------------------------------
         // CPF válido e novo a cada execução (a chave Pix é única no banco inteiro).
-        const base = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10));
+        const base = Array.from({ length: 9 }, () =>
+          Math.floor(Math.random() * 10)
+        );
         const digit = (list, len) => {
           const sum = list.reduce((acc, n, i) => acc + n * (len + 1 - i), 0);
           const rest = (sum * 10) % 11;
@@ -902,154 +1005,462 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
         base.push(digit(base, 10));
         const cpf = base.join("");
         const accountBody = {
-          bankCode: "260", agency: "0001", accountNumber: `${Math.floor(100000 + Math.random() * 899999)}-1`,
-          accountType: "checking", holderDocument: cpf,
+          bankCode: "260",
+          agency: "0001",
+          accountNumber: `${Math.floor(100000 + Math.random() * 899999)}-1`,
+          accountType: "checking",
+          holderDocument: cpf,
         };
-        assert.equal((await call("/banking/accounts", "POST", { ...accountBody, bankCode: "999" }, d.cookie)).status, 400);
-        assert.equal((await call("/banking/accounts", "POST", { ...accountBody, holderDocument: "111.111.111-11" }, d.cookie)).status, 400);
-        const created = await call("/banking/accounts", "POST", accountBody, d.cookie);
+        assert.equal(
+          (
+            await call(
+              "/banking/accounts",
+              "POST",
+              { ...accountBody, bankCode: "999" },
+              d.cookie
+            )
+          ).status,
+          400
+        );
+        assert.equal(
+          (
+            await call(
+              "/banking/accounts",
+              "POST",
+              { ...accountBody, holderDocument: "111.111.111-11" },
+              d.cookie
+            )
+          ).status,
+          400
+        );
+        const created = await call(
+          "/banking/accounts",
+          "POST",
+          accountBody,
+          d.cookie
+        );
         assert.equal(created.status, 201);
         // A mesma conta não pode ser cadastrada por outro usuário.
-        assert.equal((await call("/banking/accounts", "POST", accountBody, other.cookie)).status, 409);
+        assert.equal(
+          (await call("/banking/accounts", "POST", accountBody, other.cookie))
+            .status,
+          409
+        );
         // Mais de um banco por usuário.
-        const second2 = await call("/banking/accounts", "POST", { ...accountBody, bankCode: "341", agency: "1234", accountNumber: `${Math.floor(100000 + Math.random() * 899999)}-6` }, d.cookie);
+        const second2 = await call(
+          "/banking/accounts",
+          "POST",
+          {
+            ...accountBody,
+            bankCode: "341",
+            agency: "1234",
+            accountNumber: `${Math.floor(100000 + Math.random() * 899999)}-6`,
+          },
+          d.cookie
+        );
         assert.equal(second2.status, 201);
         const keysPath = `/banking/accounts/${created.data.id}/pix-keys`;
-        const cpfKey = await call(keysPath, "POST", { type: "cpf", value: cpf }, d.cookie);
+        const cpfKey = await call(
+          keysPath,
+          "POST",
+          { type: "cpf", value: cpf },
+          d.cookie
+        );
         assert.equal(cpfKey.status, 201);
         assert.equal(cpfKey.data.status, "approved");
         // Chave única: nem na mesma conta, nem em outro banco do mesmo usuário, nem em outro usuário.
-        assert.equal((await call(keysPath, "POST", { type: "cpf", value: cpf }, d.cookie)).status, 409);
-        assert.equal((await call(`/banking/accounts/${second2.data.id}/pix-keys`, "POST", { type: "cpf", value: cpf }, d.cookie)).status, 409);
+        assert.equal(
+          (await call(keysPath, "POST", { type: "cpf", value: cpf }, d.cookie))
+            .status,
+          409
+        );
+        assert.equal(
+          (
+            await call(
+              `/banking/accounts/${second2.data.id}/pix-keys`,
+              "POST",
+              { type: "cpf", value: cpf },
+              d.cookie
+            )
+          ).status,
+          409
+        );
         // CPF de terceiros é recusado.
-        assert.equal((await call(keysPath, "POST", { type: "cpf", value: "111.444.777-35" }, d.cookie)).status, 400);
+        assert.equal(
+          (
+            await call(
+              keysPath,
+              "POST",
+              { type: "cpf", value: "111.444.777-35" },
+              d.cookie
+            )
+          ).status,
+          400
+        );
         // E-mail exige prova de posse.
         const codes = [];
-        app.get(pix.PIX_DIRECTORY).sendOwnershipCode = async (_t, _v, code) => codes.push(code);
-        const mailKey = await call(keysPath, "POST", { type: "email", value: `pix-${suffix}@example.test` }, d.cookie);
+        app.get(pix.PIX_DIRECTORY).sendOwnershipCode = async (_t, _v, code) =>
+          codes.push(code);
+        const mailKey = await call(
+          keysPath,
+          "POST",
+          { type: "email", value: `pix-${suffix}@example.test` },
+          d.cookie
+        );
         assert.equal(mailKey.data.status, "pending");
         assert.equal(codes.length, 1);
-        assert.equal((await call(`/banking/pix-keys/${mailKey.data.id}/confirm`, "POST", { code: codes[0] }, other.cookie)).status, 404);
-        const stored = (await owner.query("SELECT proof_hash FROM pix_keys WHERE id=$1", [mailKey.data.id])).rows[0];
+        assert.equal(
+          (
+            await call(
+              `/banking/pix-keys/${mailKey.data.id}/confirm`,
+              "POST",
+              { code: codes[0] },
+              other.cookie
+            )
+          ).status,
+          404
+        );
+        const stored = (
+          await owner.query("SELECT proof_hash FROM pix_keys WHERE id=$1", [
+            mailKey.data.id,
+          ])
+        ).rows[0];
         assert.notEqual(stored.proof_hash, codes[0]);
         const wrong = codes[0] === "000000" ? "111111" : "000000";
-        assert.equal((await call(`/banking/pix-keys/${mailKey.data.id}/confirm`, "POST", { code: wrong }, d.cookie)).status, 422);
-        assert.equal((await call(`/banking/pix-keys/${mailKey.data.id}/confirm`, "POST", { code: codes[0] }, d.cookie)).status, 201);
-        const listed = await call("/banking/accounts", "GET", undefined, d.cookie);
+        assert.equal(
+          (
+            await call(
+              `/banking/pix-keys/${mailKey.data.id}/confirm`,
+              "POST",
+              { code: wrong },
+              d.cookie
+            )
+          ).status,
+          422
+        );
+        assert.equal(
+          (
+            await call(
+              `/banking/pix-keys/${mailKey.data.id}/confirm`,
+              "POST",
+              { code: codes[0] },
+              d.cookie
+            )
+          ).status,
+          201
+        );
+        const listed = await call(
+          "/banking/accounts",
+          "GET",
+          undefined,
+          d.cookie
+        );
         assert.equal(listed.data.items.length, 2);
-        const firstAccount = listed.data.items.find(i => i.id === created.data.id);
-        assert.deepEqual(firstAccount.keys.map(k => k.status).sort(), ["approved", "approved"]);
+        const firstAccount = listed.data.items.find(
+          i => i.id === created.data.id
+        );
+        assert.deepEqual(firstAccount.keys.map(k => k.status).sort(), [
+          "approved",
+          "approved",
+        ]);
         // Isolamento: o outro usuário não vê nada disso nem remove.
-        assert.equal((await call("/banking/accounts", "GET", undefined, other.cookie)).data.items.length, 0);
-        assert.equal((await call(`/banking/accounts/${created.data.id}`, "DELETE", undefined, other.cookie)).status, 404);
+        assert.equal(
+          (await call("/banking/accounts", "GET", undefined, other.cookie)).data
+            .items.length,
+          0
+        );
+        assert.equal(
+          (
+            await call(
+              `/banking/accounts/${created.data.id}`,
+              "DELETE",
+              undefined,
+              other.cookie
+            )
+          ).status,
+          404
+        );
         // Editar a chave de e-mail: volta a pendente e exige novo código; o antigo valor fica livre.
-        const oldMail = `pix-${suffix}@example.test`, newMail = `pix2-${suffix}@example.test`;
-        const edit = body => call(`/banking/pix-keys/${mailKey.data.id}`, "PATCH", body, d.cookie);
+        const oldMail = `pix-${suffix}@example.test`,
+          newMail = `pix2-${suffix}@example.test`;
+        const edit = body =>
+          call(`/banking/pix-keys/${mailKey.data.id}`, "PATCH", body, d.cookie);
         assert.equal((await edit({ value: oldMail })).status, 422);
         assert.equal((await edit({ value: "invalido" })).status, 400);
         assert.equal((await edit({ value: newMail, tipo: "cpf" })).status, 400);
-        assert.equal((await call(`/banking/pix-keys/${mailKey.data.id}`, "PATCH", { value: newMail }, other.cookie)).status, 404);
+        assert.equal(
+          (
+            await call(
+              `/banking/pix-keys/${mailKey.data.id}`,
+              "PATCH",
+              { value: newMail },
+              other.cookie
+            )
+          ).status,
+          404
+        );
         const edited = await edit({ value: newMail });
         assert.equal(edited.status, 200);
         assert.equal(edited.data.status, "pending");
         assert.equal(codes.length, 2);
-        assert.equal((await call(`/banking/pix-keys/${mailKey.data.id}/confirm`, "POST", { code: codes[1] }, d.cookie)).status, 201);
+        assert.equal(
+          (
+            await call(
+              `/banking/pix-keys/${mailKey.data.id}/confirm`,
+              "POST",
+              { code: codes[1] },
+              d.cookie
+            )
+          ).status,
+          201
+        );
         // A chave aleatória não se edita.
         const evpKey = await call(keysPath, "POST", { type: "evp" }, d.cookie);
-        assert.equal((await call(`/banking/pix-keys/${evpKey.data.id}`, "PATCH", { value: "x" }, d.cookie)).status, 422);
-        assert.equal((await call(`/banking/pix-keys/${evpKey.data.id}`, "DELETE", undefined, d.cookie)).status, 200);
+        assert.equal(
+          (
+            await call(
+              `/banking/pix-keys/${evpKey.data.id}`,
+              "PATCH",
+              { value: "x" },
+              d.cookie
+            )
+          ).status,
+          422
+        );
+        assert.equal(
+          (
+            await call(
+              `/banking/pix-keys/${evpKey.data.id}`,
+              "DELETE",
+              undefined,
+              d.cookie
+            )
+          ).status,
+          200
+        );
         // Remover uma chave libera o valor para ser registrado de novo.
-        assert.equal((await call(`/banking/pix-keys/${cpfKey.data.id}`, "DELETE", undefined, d.cookie)).status, 200);
-        assert.equal((await call(keysPath, "POST", { type: "cpf", value: cpf }, d.cookie)).status, 201);
+        assert.equal(
+          (
+            await call(
+              `/banking/pix-keys/${cpfKey.data.id}`,
+              "DELETE",
+              undefined,
+              d.cookie
+            )
+          ).status,
+          200
+        );
+        assert.equal(
+          (await call(keysPath, "POST", { type: "cpf", value: cpf }, d.cookie))
+            .status,
+          201
+        );
         // Chave aleatória é gerada pelo servidor.
-        const evp = await call(keysPath, "POST", { type: "evp", value: "tentativa" }, d.cookie);
+        const evp = await call(
+          keysPath,
+          "POST",
+          { type: "evp", value: "tentativa" },
+          d.cookie
+        );
         assert.equal(evp.status, 201);
 
         // ---- Reconhecimento facial na recuperação de senha ----------------
-        const vector = seed => Array.from({ length: 128 }, (_, i) => Math.sin(i + seed) / 4);
+        const vector = seed =>
+          Array.from({ length: 128 }, (_, i) => Math.sin(i + seed) / 4);
         const steps = ["right", "left", "down", "up", "smile"];
         const enrollPath = "/settings/face";
-        assert.equal((await call(enrollPath, "POST", { password: "errada", descriptor: vector(0), liveness: steps }, d.cookie)).status, 401);
-        assert.equal((await call(enrollPath, "POST", { password: pass, descriptor: vector(0).slice(0, 10), liveness: steps }, d.cookie)).status, 400);
-        assert.equal((await call(enrollPath, "POST", { password: pass, descriptor: vector(0), liveness: steps }, d.cookie)).status, 201);
-        assert.equal((await call("/settings", "GET", undefined, d.cookie)).data.faceEnabled, true);
+        assert.equal(
+          (
+            await call(
+              enrollPath,
+              "POST",
+              { password: "errada", descriptor: vector(0), liveness: steps },
+              d.cookie
+            )
+          ).status,
+          401
+        );
+        assert.equal(
+          (
+            await call(
+              enrollPath,
+              "POST",
+              {
+                password: pass,
+                descriptor: vector(0).slice(0, 10),
+                liveness: steps,
+              },
+              d.cookie
+            )
+          ).status,
+          400
+        );
+        assert.equal(
+          (
+            await call(
+              enrollPath,
+              "POST",
+              { password: pass, descriptor: vector(0), liveness: steps },
+              d.cookie
+            )
+          ).status,
+          201
+        );
+        assert.equal(
+          (await call("/settings", "GET", undefined, d.cookie)).data
+            .faceEnabled,
+          true
+        );
         // O modelo fica cifrado no banco e nenhuma rota o devolve.
-        const tpl = (await owner.query("SELECT template FROM face_templates WHERE user_id=$1", [d.id])).rows[0].template;
-        assert(/^[0-9a-f]+\.[0-9a-f]{32}\.[0-9a-f]+$/.test(tpl) && !tpl.includes("[") && !tpl.includes("\""));
-        assert(!JSON.stringify((await call("/settings", "GET", undefined, d.cookie)).data).includes(tpl));
+        const tpl = (
+          await owner.query(
+            "SELECT template FROM face_templates WHERE user_id=$1",
+            [d.id]
+          )
+        ).rows[0].template;
+        assert(
+          /^[0-9a-f]+\.[0-9a-f]{32}\.[0-9a-f]+$/.test(tpl) &&
+            !tpl.includes("[") &&
+            !tpl.includes('"')
+        );
+        assert(
+          !JSON.stringify(
+            (await call("/settings", "GET", undefined, d.cookie)).data
+          ).includes(tpl)
+        );
 
         const sent = [];
-        app.get(mail.MAIL_PROVIDER).sendPasswordReset = async (to, token) => sent.push({ to, token });
+        app.get(mail.MAIL_PROVIDER).sendPasswordReset = async (to, token) =>
+          sent.push({ to, token });
         const ip = { "X-Forwarded-For": "192.0.2.201" };
-        await call("/auth/forgot-password", "POST", { email: d.email }, "", undefined, ip);
+        await call(
+          "/auth/forgot-password",
+          "POST",
+          { email: d.email },
+          "",
+          undefined,
+          ip
+        );
         const token = sent[0].token;
-        const need = await call("/auth/reset-requirements", "POST", { token }, "", undefined, ip);
+        const need = await call(
+          "/auth/reset-requirements",
+          "POST",
+          { token },
+          "",
+          undefined,
+          ip
+        );
         assert.equal(need.data.faceRequired, true);
         const newPass = "Senha com rosto 789!";
         const reset = face =>
-          call("/auth/reset-password", "POST", { token, password: newPass, ...(face ? { face } : {}) }, "", undefined, ip);
+          call(
+            "/auth/reset-password",
+            "POST",
+            { token, password: newPass, ...(face ? { face } : {}) },
+            "",
+            undefined,
+            ip
+          );
         // Link sozinho não basta; rosto diferente também não.
         assert.equal((await reset()).status, 403);
         assert.equal((await reset(vector(77))).status, 403);
         // A recusa não gastou o link: o rosto certo ainda o usa.
         assert.equal((await reset(vector(0).map(n => n + 0.004))).status, 201);
         assert.equal((await reset(vector(0))).status, 400);
-        assert.equal((await call("/auth/login", "POST", { email: d.email, password: newPass }, "", undefined, ip)).status, 201);
-        const denied = await owner.query("SELECT 1 FROM audit_events WHERE action='face.verify' AND outcome='denied' AND actor_id=$1", [d.id]);
+        assert.equal(
+          (
+            await call(
+              "/auth/login",
+              "POST",
+              { email: d.email, password: newPass },
+              "",
+              undefined,
+              ip
+            )
+          ).status,
+          201
+        );
+        const denied = await owner.query(
+          "SELECT 1 FROM audit_events WHERE action='face.verify' AND outcome='denied' AND actor_id=$1",
+          [d.id]
+        );
         assert.equal(denied.rowCount, 1);
       }
     );
-    await t.test("BI: totais, séries e sugestões batem com o razão do usuário", async () => {
-      const x = await account("BiUm"), y = await account("BiDois");
-      await wallet.deposit(x.email, 10000, `bi-${suffix}`, ctx);
-      assert.equal((await transfer(x, y, 3000)).status, 201);
-      const insights = (u, q = "") => call(`/insights${q}`, "GET", undefined, u.cookie);
-      const mine = (await insights(x)).data;
-      assert.equal(mine.period, 90);
-      assert.equal(mine.summary.income, 10000);
-      assert.equal(mine.summary.expense, 3000);
-      assert.equal(mine.summary.net, 7000);
-      assert.equal(mine.summary.movements, 2);
-      assert.equal(mine.balance, 7000);
-      assert.equal(mine.byKind.find(k => k.id === "transfer_out").total, 3000);
-      assert.equal(mine.byKind.find(k => k.id === "deposit").count, 1);
-      // A série soma o mesmo que o resumo e termina no saldo atual.
-      assert.equal(mine.series.reduce((s, p) => s + p.income, 0), 10000);
-      assert.equal(mine.series.reduce((s, p) => s + p.expense, 0), 3000);
-      assert.equal(mine.series.at(-1).balance, 7000);
-      assert.equal(mine.counterparts.length, 1);
-      assert.equal(mine.counterparts[0].name, "BiDois");
-      assert.equal(mine.counterparts[0].sent, 3000);
-      assert(Array.isArray(mine.suggestions) && mine.suggestions.some(s => s.id === "positive-net"));
-      // Cada usuário vê só o próprio razão.
-      const theirs = (await insights(y)).data;
-      assert.equal(theirs.summary.income, 3000);
-      assert.equal(theirs.summary.expense, 0);
-      assert.equal(theirs.counterparts[0].received, 3000);
-      // Períodos válidos mudam o agrupamento; inválidos e o master são recusados.
-      assert.equal((await insights(x, "?period=30")).data.bucket, "day");
-      assert.equal((await insights(x, "?period=365")).data.bucket, "month");
-      assert.equal((await insights(x, "?period=7")).status, 400);
-      assert.equal((await insights(master)).status, 403);
-      assert.equal((await call("/insights", "GET")).status, 401);
-    });
-    await t.test("índices do extrato e limpeza das janelas vencidas", async () => {
-      // O extrato filtra `entries` por usuário: sem este índice vira varredura da tabela.
-      const idx = await owner.query(
-        "SELECT 1 FROM pg_indexes WHERE tablename='entries' AND indexname='entries_user'"
-      );
-      assert.equal(idx.rowCount, 1);
-      // Janela vencida some; janela ainda válida permanece.
-      const hits = app.get(rateRepo.RateLimitRepository);
-      await owner.query(
-        "INSERT INTO rate_limits(key,count,expires_at) VALUES('purge-old',1,now()-interval '1 minute'),('purge-live',1,now()+interval '1 hour')"
-      );
-      assert((await hits.purgeExpired()) >= 1);
-      const left = await owner.query(
-        "SELECT key FROM rate_limits WHERE key IN ('purge-old','purge-live')"
-      );
-      assert.deepEqual(left.rows.map(r => r.key), ["purge-live"]);
-    });
+    await t.test(
+      "BI: totais, séries e sugestões batem com o razão do usuário",
+      async () => {
+        const x = await account("BiUm"),
+          y = await account("BiDois");
+        await wallet.deposit(x.email, 10000, `bi-${suffix}`, ctx);
+        assert.equal((await transfer(x, y, 3000)).status, 201);
+        const insights = (u, q = "") =>
+          call(`/insights${q}`, "GET", undefined, u.cookie);
+        const mine = (await insights(x)).data;
+        assert.equal(mine.period, 90);
+        assert.equal(mine.summary.income, 10000);
+        assert.equal(mine.summary.expense, 3000);
+        assert.equal(mine.summary.net, 7000);
+        assert.equal(mine.summary.movements, 2);
+        assert.equal(mine.balance, 7000);
+        assert.equal(
+          mine.byKind.find(k => k.id === "transfer_out").total,
+          3000
+        );
+        assert.equal(mine.byKind.find(k => k.id === "deposit").count, 1);
+        // A série soma o mesmo que o resumo e termina no saldo atual.
+        assert.equal(
+          mine.series.reduce((s, p) => s + p.income, 0),
+          10000
+        );
+        assert.equal(
+          mine.series.reduce((s, p) => s + p.expense, 0),
+          3000
+        );
+        assert.equal(mine.series.at(-1).balance, 7000);
+        assert.equal(mine.counterparts.length, 1);
+        assert.equal(mine.counterparts[0].name, "BiDois");
+        assert.equal(mine.counterparts[0].sent, 3000);
+        assert(
+          Array.isArray(mine.suggestions) &&
+            mine.suggestions.some(s => s.id === "positive-net")
+        );
+        // Cada usuário vê só o próprio razão.
+        const theirs = (await insights(y)).data;
+        assert.equal(theirs.summary.income, 3000);
+        assert.equal(theirs.summary.expense, 0);
+        assert.equal(theirs.counterparts[0].received, 3000);
+        // Períodos válidos mudam o agrupamento; inválidos e o master são recusados.
+        assert.equal((await insights(x, "?period=30")).data.bucket, "day");
+        assert.equal((await insights(x, "?period=365")).data.bucket, "month");
+        assert.equal((await insights(x, "?period=7")).status, 400);
+        assert.equal((await insights(master)).status, 403);
+        assert.equal((await call("/insights", "GET")).status, 401);
+      }
+    );
+    await t.test(
+      "índices do extrato e limpeza das janelas vencidas",
+      async () => {
+        // O extrato filtra `entries` por usuário: sem este índice vira varredura da tabela.
+        const idx = await owner.query(
+          "SELECT 1 FROM pg_indexes WHERE tablename='entries' AND indexname='entries_user'"
+        );
+        assert.equal(idx.rowCount, 1);
+        // Janela vencida some; janela ainda válida permanece.
+        const hits = app.get(rateRepo.RateLimitRepository);
+        await owner.query(
+          "INSERT INTO rate_limits(key,count,expires_at) VALUES('purge-old',1,now()-interval '1 minute'),('purge-live',1,now()+interval '1 hour')"
+        );
+        assert((await hits.purgeExpired()) >= 1);
+        const left = await owner.query(
+          "SELECT key FROM rate_limits WHERE key IN ('purge-old','purge-live')"
+        );
+        assert.deepEqual(
+          left.rows.map(r => r.key),
+          ["purge-live"]
+        );
+      }
+    );
     await t.test("logout revoga a sessão no servidor", async () => {
       assert.equal(
         (await call("/auth/logout", "POST", {}, a.cookie)).status,

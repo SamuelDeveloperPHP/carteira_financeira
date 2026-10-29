@@ -31,13 +31,15 @@ const context = (req = {}) => ({
 const trusted = {
   headers: { origin: "http://localhost:3080", "x-wallet-request": "1" },
 };
-const session = (over = {}) => async () => ({
-  user_id: "u1",
-  stage: "full",
-  totp_enabled: true,
-  role: "user",
-  ...over,
-});
+const session =
+  (over = {}) =>
+  async () => ({
+    user_id: "u1",
+    stage: "full",
+    totp_enabled: true,
+    role: "user",
+    ...over,
+  });
 const forbids = (promise, message) =>
   assert.rejects(promise, e => {
     assert.equal(e.getStatus(), 403);
@@ -47,22 +49,41 @@ const forbids = (promise, message) =>
 
 test("POST sem origem confiável e sem cabeçalho próprio é recusado mesmo em rota pública", async () => {
   const guard = build({ meta: { access: "public" } });
-  await forbids(guard.canActivate(context({ method: "POST" })), "Origem da solicitação não autorizada.");
   await forbids(
-    guard.canActivate(context({ method: "POST", headers: { origin: "https://evil.example", "x-wallet-request": "1" } }))
+    guard.canActivate(context({ method: "POST" })),
+    "Origem da solicitação não autorizada."
   );
   await forbids(
-    guard.canActivate(context({ method: "POST", headers: { origin: "http://localhost:3080" } }))
+    guard.canActivate(
+      context({
+        method: "POST",
+        headers: { origin: "https://evil.example", "x-wallet-request": "1" },
+      })
+    )
   );
-  assert.equal(await guard.canActivate(context({ method: "POST", ...trusted })), true);
+  await forbids(
+    guard.canActivate(
+      context({ method: "POST", headers: { origin: "http://localhost:3080" } })
+    )
+  );
+  assert.equal(
+    await guard.canActivate(context({ method: "POST", ...trusted })),
+    true
+  );
 });
 
 test("rotas públicas não consultam a sessão", async () => {
-  assert.equal(await build({ meta: { access: "public" } }).canActivate(context()), true);
+  assert.equal(
+    await build({ meta: { access: "public" } }).canActivate(context()),
+    true
+  );
 });
 
 test("sem sessão válida a requisição é barrada", async () => {
-  await assert.rejects(build().canActivate(context()), e => e.getStatus() === 401);
+  await assert.rejects(
+    build().canActivate(context()),
+    e => e.getStatus() === 401
+  );
 });
 
 test("sessão parcial (2FA pendente) não acessa rotas financeiras", async () => {
@@ -78,27 +99,44 @@ test("sessão parcial (2FA pendente) não acessa rotas financeiras", async () =>
 });
 
 test("fluxo do segundo fator só aceita sessão parcial; status e logout aceitam qualquer etapa", async () => {
-  const partial = build({ meta: { access: "partial" }, session: session({ stage: "challenge", totp_enabled: true }) });
+  const partial = build({
+    meta: { access: "partial" },
+    session: session({ stage: "challenge", totp_enabled: true }),
+  });
   assert.equal(await partial.canActivate(context()), true);
   await forbids(
-    build({ meta: { access: "partial" }, session: session() }).canActivate(context()),
+    build({ meta: { access: "partial" }, session: session() }).canActivate(
+      context()
+    ),
     "Reinicie o fluxo de autenticação."
   );
-  const any = build({ meta: { access: "any-stage" }, session: session({ stage: "setup", totp_enabled: false }) });
+  const any = build({
+    meta: { access: "any-stage" },
+    session: session({ stage: "setup", totp_enabled: false }),
+  });
   assert.equal(await any.canActivate(context()), true);
 });
 
 test("o master é barrado nas rotas de usuário e o usuário nas de master", async () => {
   await forbids(
-    build({ meta: { roles: ["user"] }, session: session({ role: "master" }) }).canActivate(context()),
+    build({
+      meta: { roles: ["user"] },
+      session: session({ role: "master" }),
+    }).canActivate(context()),
     "O master tem acesso somente para auditoria."
   );
   await forbids(
-    build({ meta: { roles: ["master"] }, session: session({ role: "user" }) }).canActivate(context()),
+    build({
+      meta: { roles: ["master"] },
+      session: session({ role: "user" }),
+    }).canActivate(context()),
     "Acesso restrito ao master."
   );
   assert.equal(
-    await build({ meta: { roles: ["master"] }, session: session({ role: "master" }) }).canActivate(context()),
+    await build({
+      meta: { roles: ["master"] },
+      session: session({ role: "master" }),
+    }).canActivate(context()),
     true
   );
 });

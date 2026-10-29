@@ -7,7 +7,14 @@
  */
 import { useEffect, useState } from "react";
 import { api } from "../../api";
-import { BalanceChart, FlowChart, GREEN, HBars, Point, RED } from "../../components/charts";
+import {
+  BalanceChart,
+  FlowChart,
+  GREEN,
+  HBars,
+  Point,
+  RED,
+} from "../../components/charts";
 import { cash } from "../../lib/format";
 import { useSession } from "../../session";
 
@@ -25,10 +32,27 @@ type Overview = {
     biggestOut: number;
     biggestIn: number;
   };
-  byKind: { id: string; label: string; direction: "in" | "out"; count: number; total: number }[];
+  byKind: {
+    id: string;
+    label: string;
+    direction: "in" | "out";
+    count: number;
+    total: number;
+  }[];
   series: { date: string; income: number; expense: number; balance: number }[];
-  counterparts: { id: string; name: string; received: number; sent: number; count: number }[];
-  suggestions: { id: string; level: "success" | "info" | "warning"; title: string; message: string }[];
+  counterparts: {
+    id: string;
+    name: string;
+    received: number;
+    sent: number;
+    count: number;
+  }[];
+  suggestions: {
+    id: string;
+    level: "success" | "info" | "warning";
+    title: string;
+    message: string;
+  }[];
 };
 
 const PERIODS: [Period, string][] = [
@@ -37,7 +61,11 @@ const PERIODS: [Period, string][] = [
   ["365", "12 meses"],
 ];
 const BUCKET_TEXT = { day: "por dia", week: "por semana", month: "por mês" };
-const LEVEL_TEXT = { warning: "Atenção", info: "Informação", success: "Bom sinal" };
+const LEVEL_TEXT = {
+  warning: "Atenção",
+  info: "Informação",
+  success: "Bom sinal",
+};
 const two = (n: number) => String(n).padStart(2, "0");
 
 /** Rótulo do intervalo: dd/mm (dia e semana) ou mm/aaaa (mês). */
@@ -77,7 +105,11 @@ export default function BiPage() {
   const kpis: [string, string, string?][] = [
     ["Entradas", cash(s.income), "pos"],
     ["Saídas", cash(s.expense), "neg"],
-    ["Resultado do período", `${s.net > 0 ? "+" : ""}${cash(s.net)}`, s.net >= 0 ? "pos" : "neg"],
+    [
+      "Resultado do período",
+      `${s.net > 0 ? "+" : ""}${cash(s.net)}`,
+      s.net >= 0 ? "pos" : "neg",
+    ],
     ["Saldo atual", cash(data.balance)],
     ["Movimentações", String(s.movements)],
     ["Maior saída", cash(s.biggestOut)],
@@ -91,7 +123,9 @@ export default function BiPage() {
         <div className="section-head">
           <div>
             <h2>Relatórios</h2>
-            <p className="muted mb-0">Indicadores e sugestões sobre as suas movimentações.</p>
+            <p className="muted mb-0">
+              Indicadores e sugestões sobre as suas movimentações.
+            </p>
           </div>
           <div className="seg" role="group" aria-label="Período">
             {PERIODS.map(([id, title]) => (
@@ -122,8 +156,9 @@ export default function BiPage() {
           ))}
         </ul>
         <p className="footer-note">
-          Sugestões geradas automaticamente a partir das suas movimentações simuladas. Não são aconselhamento
-          financeiro nem recomendação de investimento.
+          Sugestões geradas automaticamente a partir das suas movimentações
+          simuladas. Não são aconselhamento financeiro nem recomendação de
+          investimento.
         </p>
       </section>
 
@@ -139,16 +174,27 @@ export default function BiPage() {
       <section className="panel">
         <h2>Entradas e saídas</h2>
         <p className="muted">
-          {BUCKET_TEXT[data.bucket]} · <span style={{ color: GREEN }}>■</span> entradas{" "}
-          <span style={{ color: RED }}>■</span> saídas
+          {BUCKET_TEXT[data.bucket]} · <span style={{ color: GREEN }}>■</span>{" "}
+          entradas <span style={{ color: RED }}>■</span> saídas
         </p>
-        {points.length ? <FlowChart points={points} /> : <p className="muted">Sem movimentações no período.</p>}
+        {points.length ? (
+          <FlowChart points={points} />
+        ) : (
+          <p className="muted">Sem movimentações no período.</p>
+        )}
       </section>
 
       <section className="panel">
         <h2>Evolução do saldo</h2>
-        <p className="muted">Saldo ao fim de cada intervalo com movimentação ({BUCKET_TEXT[data.bucket]}).</p>
-        {points.length ? <BalanceChart points={points} /> : <p className="muted">Sem movimentações no período.</p>}
+        <p className="muted">
+          Saldo ao fim de cada intervalo com movimentação (
+          {BUCKET_TEXT[data.bucket]}).
+        </p>
+        {points.length ? (
+          <BalanceChart points={points} />
+        ) : (
+          <p className="muted">Sem movimentações no período.</p>
+        )}
         {points.length > 0 && (
           <details className="chart-table">
             <summary>Ver os dados em tabela</summary>
@@ -216,7 +262,9 @@ export default function BiPage() {
               </table>
             </div>
           ) : (
-            <p className="muted">Nenhuma transferência com outras pessoas no período.</p>
+            <p className="muted">
+              Nenhuma transferência com outras pessoas no período.
+            </p>
           )}
         </section>
       </div>

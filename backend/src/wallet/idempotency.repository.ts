@@ -19,7 +19,9 @@ export class IdempotencyRepository {
    * `hashtextextended` transforma o texto da chave em um número de 64 bits.
    */
   async lock(q: Queryable, key: string) {
-    await q.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [key]);
+    await q.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
+      key,
+    ]);
   }
 
   /** Procura uma requisição anterior com o mesmo escopo e chave, já com o movimento que ela gerou. */

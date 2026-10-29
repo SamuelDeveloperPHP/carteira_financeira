@@ -23,7 +23,10 @@ export default function SecurityPage() {
       // O servidor já revogou todas as sessões: a tela volta ao estágio "setup"
       // e a página de entrada busca o novo QR code.
       expire(r.stage);
-      notify("warning", "Autenticador substituído. Cadastre o novo para continuar.");
+      notify(
+        "warning",
+        "Autenticador substituído. Cadastre o novo para continuar."
+      );
       router.replace("/");
     });
   }
@@ -32,14 +35,15 @@ export default function SecurityPage() {
     <section className="panel">
       <h2>Autenticação em dois fatores</h2>
       <p>
-        Seu acesso exige senha e código do autenticador. Transferências e devoluções utilizam a sessão já
-        autenticada.
+        Seu acesso exige senha e código do autenticador. Transferências e
+        devoluções utilizam a sessão já autenticada.
       </p>
       <hr />
       <h3>Trocar o autenticador</h3>
       <p className="muted">
-        Confirme sua senha e um código válido. Todas as sessões e códigos de recuperação anteriores serão
-        revogados. Você precisará cadastrar o novo autenticador antes de continuar.
+        Confirme sua senha e um código válido. Todas as sessões e códigos de
+        recuperação anteriores serão revogados. Você precisará cadastrar o novo
+        autenticador antes de continuar.
       </p>
       <form className="security-form" onSubmit={rotate}>
         <Field label="Senha atual">

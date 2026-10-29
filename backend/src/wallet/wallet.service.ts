@@ -49,7 +49,11 @@ export class WalletService {
    * do master passam por `statement` direto e são auditadas pelo AdminService,
    * com um evento próprio ("admin.statement.view").
    */
-  async ownStatement(userId: string, page: number | undefined, ctx: AuditContext) {
+  async ownStatement(
+    userId: string,
+    page: number | undefined,
+    ctx: AuditContext
+  ) {
     await this.audit.record("wallet.statement.view", userId, userId, ctx, {
       page: page ?? 1,
     });

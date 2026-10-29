@@ -39,7 +39,9 @@ export function createWorld(wallets = {}) {
   const ledgerRepo = {
     async lockWallets(_q, ids) {
       return new Map(
-        ids.filter(id => state.wallets.has(id)).map(id => [id, state.wallets.get(id)])
+        ids
+          .filter(id => state.wallets.has(id))
+          .map(id => [id, state.wallets.get(id)])
       );
     },
     async insertMovement(_q, m) {
@@ -123,7 +125,12 @@ export function createWorld(wallets = {}) {
     state.wallets.set(name, balance);
   };
   world.balance = id => state.wallets.get(id);
-  world.ctx = { correlationId: "test", ip: "127.0.0.1", device: "unit", location: {} };
+  world.ctx = {
+    correlationId: "test",
+    ip: "127.0.0.1",
+    device: "unit",
+    location: {},
+  };
   return world;
 }
 

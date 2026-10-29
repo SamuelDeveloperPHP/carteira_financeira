@@ -50,10 +50,12 @@ export function FaceFlow({
       <div className="face-oval" aria-hidden="true">
         <Silhouette />
       </div>
-      <p>
-        Posicione seu rosto no formato oval e toque no botão Começar
-      </p>
-      <button type="button" className="btn btn-primary face-start" onClick={() => setOpen(true)}>
+      <p>Posicione seu rosto no formato oval e toque no botão Começar</p>
+      <button
+        type="button"
+        className="btn btn-primary face-start"
+        onClick={() => setOpen(true)}
+      >
         Começar
       </button>
       <button type="button" className="btn btn-link" onClick={onCancel}>
@@ -61,7 +63,10 @@ export function FaceFlow({
       </button>
 
       {open && (
-        <div className="face-backdrop" onMouseDown={e => e.target === e.currentTarget && setOpen(false)}>
+        <div
+          className="face-backdrop"
+          onMouseDown={e => e.target === e.currentTarget && setOpen(false)}
+        >
           <div
             className="face-modal"
             role="dialog"

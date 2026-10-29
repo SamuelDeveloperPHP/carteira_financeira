@@ -54,13 +54,28 @@ export class FaceService {
     const descriptor = parseDescriptor(dto.descriptor);
     // As cinco etapas têm de aparecer, sem repetição.
     if (new Set(dto.liveness).size !== 5)
-      throw new UnprocessableEntityException("Conclua todas as etapas da prova de vida.");
+      throw new UnprocessableEntityException(
+        "Conclua todas as etapas da prova de vida."
+      );
     await this.assertPassword(userId, dto.password, ctx);
     await this.db.transaction(async tx => {
-      await this.repo.saveTemplate(tx, userId, encrypt(JSON.stringify(descriptor)));
+      await this.repo.saveTemplate(
+        tx,
+        userId,
+        encrypt(JSON.stringify(descriptor))
+      );
       await this.repo.update(tx, userId, { face: true });
       // `livenessAttestedByClient`: a prova de vida foi declarada pelo navegador.
-      await this.audit.record("face.enrolled", userId, userId, ctx, { livenessAttestedByClient: true }, "success", null, tx);
+      await this.audit.record(
+        "face.enrolled",
+        userId,
+        userId,
+        ctx,
+        { livenessAttestedByClient: true },
+        "success",
+        null,
+        tx
+      );
     });
     return { message: "Reconhecimento facial ativado." };
   }
@@ -72,7 +87,16 @@ export class FaceService {
     await this.db.transaction(async tx => {
       await this.repo.deleteTemplate(tx, userId);
       await this.repo.update(tx, userId, { face: false });
-      await this.audit.record("face.disabled", userId, userId, ctx, {}, "success", null, tx);
+      await this.audit.record(
+        "face.disabled",
+        userId,
+        userId,
+        ctx,
+        {},
+        "success",
+        null,
+        tx
+      );
     });
     return { message: "Reconhecimento facial desativado e modelo apagado." };
   }
@@ -87,10 +111,16 @@ export class FaceService {
    * tentativa conta no limite (gravado fora da transação do chamador, então um
    * rollback não devolve a tentativa).
    */
-  async assertMatch(userId: string, candidate: unknown, ctx: AuditContext, q?: Queryable) {
+  async assertMatch(
+    userId: string,
+    candidate: unknown,
+    ctx: AuditContext,
+    q?: Queryable
+  ) {
     await this.limiter.throttle(`face-verify:${userId}`, FACE_ATTEMPTS);
     const stored = await this.repo.template(userId, q);
-    if (!stored) throw new ForbiddenException("Reconhecimento facial não confere.");
+    if (!stored)
+      throw new ForbiddenException("Reconhecimento facial não confere.");
     const ok = sameFace(
       JSON.parse(decrypt(stored)) as number[],
       parseDescriptor(candidate),
@@ -104,13 +134,33 @@ export class FaceService {
 
   /** Registra a recusa facial na trilha. Chamar DEPOIS do rollback da transação que a provocou. */
   async auditMismatch(userId: string, ctx: AuditContext) {
-    await this.audit.record("face.verify", userId, userId, ctx, {}, "denied", "face_mismatch");
+    await this.audit.record(
+      "face.verify",
+      userId,
+      userId,
+      ctx,
+      {},
+      "denied",
+      "face_mismatch"
+    );
   }
 
-  private async assertPassword(userId: string, password: string, ctx: AuditContext) {
+  private async assertPassword(
+    userId: string,
+    password: string,
+    ctx: AuditContext
+  ) {
     const user = await this.users.findById(userId);
     if (!user || !(await checkPassword(password, user.password_hash))) {
-      await this.audit.record("face.reauth", userId, userId, ctx, {}, "denied", "bad_password");
+      await this.audit.record(
+        "face.reauth",
+        userId,
+        userId,
+        ctx,
+        {},
+        "denied",
+        "bad_password"
+      );
       throw new UnauthorizedException("Senha incorreta.");
     }
   }
