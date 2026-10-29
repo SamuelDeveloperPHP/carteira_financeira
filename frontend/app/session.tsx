@@ -133,8 +133,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Contador do sino (só cliente comum): ao entrar, a cada 15 s e quando a aba
   // volta a ficar visível. É uma chamada barata (COUNT com índice parcial) e as
   // falhas são silenciosas: o próximo ciclo tenta de novo.
+  const customerId = user?.role === "user" ? user.id : null;
   useEffect(() => {
-    if (!user || user.role !== "user") {
+    if (!customerId) {
       setUnread(0);
       return;
     }
@@ -162,7 +163,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [user?.id, user?.role, setUnread]);
+  }, [customerId, setUnread]);
 
   function signIn(u: User, recoveryCodes: string[] = []) {
     setUser(u);

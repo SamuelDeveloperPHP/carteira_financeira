@@ -8,6 +8,7 @@ import deposits from "../dist/wallet/deposits.service.js";
 import security from "../dist/common/security/crypto.js";
 import mail from "../dist/auth/mail/mail.provider.js";
 import pix from "../dist/banking/pix-directory.provider.js";
+import rateRepo from "../dist/common/rate-limit/rate-limit.repository.js";
 
 test("integração PostgreSQL: segurança, movimentações e auditoria", async t => {
   const ownerUrl = process.env.DATABASE_URL;
@@ -1031,6 +1032,23 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
       assert.equal((await insights(x, "?period=7")).status, 400);
       assert.equal((await insights(master)).status, 403);
       assert.equal((await call("/insights", "GET")).status, 401);
+    });
+    await t.test("índices do extrato e limpeza das janelas vencidas", async () => {
+      // O extrato filtra `entries` por usuário: sem este índice vira varredura da tabela.
+      const idx = await owner.query(
+        "SELECT 1 FROM pg_indexes WHERE tablename='entries' AND indexname='entries_user'"
+      );
+      assert.equal(idx.rowCount, 1);
+      // Janela vencida some; janela ainda válida permanece.
+      const hits = app.get(rateRepo.RateLimitRepository);
+      await owner.query(
+        "INSERT INTO rate_limits(key,count,expires_at) VALUES('purge-old',1,now()-interval '1 minute'),('purge-live',1,now()+interval '1 hour')"
+      );
+      assert((await hits.purgeExpired()) >= 1);
+      const left = await owner.query(
+        "SELECT key FROM rate_limits WHERE key IN ('purge-old','purge-live')"
+      );
+      assert.deepEqual(left.rows.map(r => r.key), ["purge-live"]);
     });
     await t.test("logout revoga a sessão no servidor", async () => {
       assert.equal(

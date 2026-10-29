@@ -10,7 +10,6 @@ import {
   Max,
   MaxLength,
   Min,
-  MinLength,
   Validate,
   ValidationArguments,
   ValidatorConstraint,

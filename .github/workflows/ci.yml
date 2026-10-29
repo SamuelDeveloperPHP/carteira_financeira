@@ -2,6 +2,7 @@ name: CI
 
 # Roda a cada envio e a cada pull request. Três etapas independentes:
 #   backend  - 101 testes (unitários + integração com PostgreSQL) no Docker
+#   qualidade - formatação (Prettier) e lint (ESLint)
 #   frontend - verificação de tipos e auditoria de dependências
 #   e2e      - sobe o sistema inteiro e roda o fluxo do cliente em navegador real
 on:
@@ -34,6 +35,23 @@ jobs:
           } > .docker.env
       - name: Testes (unitários e integração)
         run: docker compose --env-file .docker.env --profile test run --rm --build tests
+
+  qualidade:
+    name: Qualidade (formatação e lint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - name: Formatação (Prettier)
+        run: npm run format:check
+      - name: Lint (ESLint)
+        run: npm run lint
 
   frontend:
     name: Frontend (tipos e dependências)

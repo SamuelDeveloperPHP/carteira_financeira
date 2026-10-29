@@ -13,7 +13,7 @@ import {
 const brl = (cents: string) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
     .format(Number(cents) / 100)
-    .replace(/ /g, " ");
+    .replace(/00a0/g, " ");
 
 /**
  * Texto de cada tipo de aviso. Fica no servidor, em um lugar só: qualquer

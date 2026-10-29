@@ -10,8 +10,8 @@ Entregar uma carteira demonstrável, com movimentações consistentes, autentica
 
 ## Base acordada
 
-- Frontend: Next.js e TypeScript, aproveitando o template existente.
-- Implementação: frontend operacional isolado em `frontend/`, reaproveitando Bootstrap e fontes locais; template original em `src/` preservado sem seus mocks na execução Docker.
+- Frontend: Next.js e TypeScript.
+- Implementação: frontend em `frontend/` (Bootstrap e fontes locais) e backend em `backend/`. O template visual de partida foi removido do repositório por não ser usado.
 - Backend: NestJS sobre Node.js, com TypeScript, em `backend/`.
 - Toda carteira começa com saldo zero.
 - O saldo aumenta por transferências recebidas ou depósitos externos simulados e controlados.
@@ -154,9 +154,9 @@ Essas premissas complementam o enunciado e devem constar na documentação da en
 | CF-17 | P1 | Melhorias visuais da investigação | M | CF-10, CF-13 |
 
 **CF-12 — Critérios de aceite**
-- Reaproveita o template para cadastro, login, ativação/validação de 2FA, recuperação, saldo, extrato, transferência e devolução.
+- Interface própria para cadastro, login, ativação/validação de 2FA, recuperação, saldo, extrato, transferência e devolução.
 - Exibe validações, andamento, sucesso e erro; valores financeiros vêm do backend.
-- Fluxos financeiros não dependem do backend simulado do template.
+- Os fluxos financeiros usam somente a API própria (`backend/`).
 - Transferência e devolução não exigem novo código após o login completo.
 - Exibe indicação clara de "Ambiente de demonstração — valores simulados" nas telas financeiras.
 
@@ -218,7 +218,7 @@ Os testes e a documentação acompanham o desenvolvimento desde o primeiro dia. 
 O prazo é conhecido, mas a disponibilidade diária e o número de pessoas não foram informados. A sequência acima é uma proposta de execução, não uma garantia de capacidade. O escopo cresceu em relação ao PDF com 2FA, recuperação, geolocalização, master e auditoria detalhada.
 
 - **Prazo apertado:** limitar a interface às telas essenciais e reservar parte do último dia para correções e apresentação. Reavaliar o avanço ao final do primeiro dia; não reduzir silenciosamente requisitos P0.
-- **Template existente:** verificar execução e autenticação simulada cedo para evitar que a integração comprometa o backend.
+- **Template de partida:** acabou removido (não era usado); a interface foi construída do zero em `frontend/`.
 - **Concorrência financeira:** validar com testes de integração antes de investir em acabamento visual.
 - **Geolocalização:** prever negativa e indisponibilidade como resultados normais.
 - **Segurança administrativa:** restringir provisionamento, proteger segredos e auditar também o auditor.

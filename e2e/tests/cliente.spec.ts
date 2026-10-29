@@ -10,6 +10,7 @@ import * as OTPAuth from "otpauth";
  */
 
 const PASSWORD = "Senha de teste e2e 123!";
+const violations: string[] = [];
 const money = (v: string) => new RegExp(`R\\$\\s*${v.replace(".", "\\.")}`);
 
 /** Código do autenticador a partir do segredo exibido na tela de cadastro do 2FA. */
@@ -29,6 +30,10 @@ async function signUpAndEnter(browser: Browser, name: string, email: string): Pr
     permissions: ["geolocation"],
   });
   const page = await context.newPage();
+  // O gateway envia uma CSP restrita: qualquer recurso bloqueado aparece aqui.
+  page.on("console", msg => {
+    if (/Content Security Policy|Refused to/i.test(msg.text())) violations.push(msg.text());
+  });
   await page.goto("/");
   await page.locator(".auth-tabs").getByRole("button", { name: "Criar conta" }).click();
   await page.locator("input[autocomplete=name]").fill(name);
@@ -158,6 +163,10 @@ test("cliente: cadastro, saldo, transferência, notificação e devolução", as
     await ana.goto("/carteira");
     await expect(ana).toHaveURL(/\/$/);
     await expect(ana.getByRole("heading", { name: "Acesse sua carteira" })).toBeVisible();
+  });
+
+  await test.step("a política de segurança de conteúdo (CSP) não bloqueou nada", async () => {
+    expect(violations, violations.join(" | ")).toEqual([]);
   });
 
   await ana.context().close();

@@ -1,6 +1,6 @@
 name: carteira_financeira
 x-api: &api
-  build: ./backend
+  build: { context: ./backend, target: runtime }
   image: carteira_financeira-api:local
   init: true
   restart: unless-stopped
@@ -63,6 +63,8 @@ services:
     restart: unless-stopped
     init: true
     environment: { NODE_ENV: production, HOSTNAME: "0.0.0.0", PORT: "3000" }
+    read_only: true
+    tmpfs: [/tmp]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     healthcheck:
@@ -99,6 +101,8 @@ services:
       retries: 15
   tests:
     <<: *api
+    build: { context: ./backend, target: test }
+    image: carteira_financeira-api-test:local
     profiles: [test]
     restart: "no"
     environment:

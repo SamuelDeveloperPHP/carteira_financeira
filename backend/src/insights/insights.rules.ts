@@ -30,7 +30,7 @@ export interface Suggestion {
 const brl = (cents: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
     .format(cents / 100)
-    .replace(/ /g, " ");
+    .replace(/00a0/g, " ");
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const ORDER = { warning: 0, info: 1, success: 2 } as const;
 
