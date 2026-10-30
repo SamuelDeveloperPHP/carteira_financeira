@@ -14,7 +14,6 @@ export class AccessService {
   constructor(private readonly repo: AccessLogRepository) {}
 
   async list(userId: string, currentHash: string, page = 1) {
-    await this.repo.closeExpired(userId);
     const rows = await this.repo.page(
       userId,
       currentHash,
@@ -29,7 +28,6 @@ export class AccessService {
   }
 
   async map(userId: string, currentHash: string) {
-    await this.repo.closeExpired(userId);
     const rows = await this.repo.withCoordinates(
       userId,
       currentHash,

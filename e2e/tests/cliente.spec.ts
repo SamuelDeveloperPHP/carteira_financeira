@@ -51,7 +51,7 @@ async function signUpAndEnter(
     .locator("form")
     .getByRole("button", { name: "Criar conta" })
     .click();
-  await expect(page.locator(".swal2-toast")).toContainText("Conta criada");
+  await expect(page.locator(".swal2-toast")).toContainText("Cadastro recebido");
 
   await page
     .locator(".auth-tabs")

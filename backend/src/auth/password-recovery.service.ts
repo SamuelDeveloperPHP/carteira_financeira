@@ -22,6 +22,9 @@ import { MAIL_PROVIDER, MailProvider } from "./mail/mail.provider";
 import { PasswordResetsRepository } from "./password-resets.repository";
 import { SessionsRepository } from "./sessions.repository";
 
+/** Duração mínima do pedido de link (ms), para não distinguir conta existente de desconhecida pelo tempo. */
+const FORGOT_MIN_MS = 300;
+
 /**
  * Recuperação de senha por link enviado por e-mail.
  *
@@ -74,6 +77,7 @@ export class PasswordRecoveryService {
   async forgot(dto: ForgotPasswordDto, req: AppRequest) {
     await this.limiter.throttle(`forgot-ip:${req.ip}`, 10);
     await this.limiter.throttle(`forgot-email:${dto.email}`, 3);
+    const started = Date.now();
     const user = await this.users.findByEmail(dto.email);
     // Liga o evento de auditoria à conta, quando existe.
     req.targetResource = user?.id || null;
@@ -94,17 +98,22 @@ export class PasswordRecoveryService {
           tx
         );
       });
-      try {
-        await this.mail.sendPasswordReset(user.email, value, RESET_MINUTES);
-      } catch {
-        // Só o ID de correlação vai ao log: nem o e-mail do usuário nem o token.
-        console.error(
-          JSON.stringify({
-            event: "mail.failed",
-            correlationId: req.correlationId,
-          })
-        );
-      }
+      // O envio sai da requisição (não é aguardado): a latência de um provedor
+      // real de e-mail, só presente para contas existentes, revelaria quem é
+      // cliente. Falha vira log; o usuário pode pedir outro link.
+      void (async () => {
+        try {
+          await this.mail.sendPasswordReset(user.email, value, RESET_MINUTES);
+        } catch {
+          // Só o ID de correlação vai ao log: nem o e-mail do usuário nem o token.
+          console.error(
+            JSON.stringify({
+              event: "mail.failed",
+              correlationId: req.correlationId,
+            })
+          );
+        }
+      })();
     } else
       // Conta inexistente: nada é enviado, mas o pedido fica auditado (útil para
       // detectar alguém testando e-mails). A resposta ao cliente continua igual.
@@ -117,6 +126,10 @@ export class PasswordRecoveryService {
         "denied",
         "unknown_account"
       );
+    // Duração mínima igual para conta existente e desconhecida: o caminho com
+    // conta faz mais escritas no banco, e a diferença seria medível.
+    const remaining = FORGOT_MIN_MS - (Date.now() - started);
+    if (remaining > 0) await new Promise(r => setTimeout(r, remaining));
     return {
       message: `Se o e-mail estiver cadastrado, enviaremos um link válido por ${RESET_MINUTES} minutos.`,
     };
@@ -134,6 +147,11 @@ export class PasswordRecoveryService {
     await this.limiter.throttle(`reset-ip:${req.ip}`, 20);
     // scrypt é lento de propósito: calculado antes da transação para não segurar a conexão.
     const hash = await hashPassword(dto.password);
+    // Com o rosto ativo, a tentativa é contada antes da transação (outra conexão
+    // do pool; ver FaceService.throttleVerify).
+    const linked = await this.resets.peek(this.db.pool, digest(dto.token));
+    if (linked && (await this.faces.isRequired(linked)))
+      await this.faces.throttleVerify(linked);
     try {
       return await this.redefine(dto, hash, req);
     } catch (e) {

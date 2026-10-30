@@ -295,7 +295,7 @@ Requisições repetidas são serializadas por chave de idempotência e escopo. D
 - Sessões opacas aleatórias; apenas hashes ficam no banco. Etapa parcial expira em 10 minutos; completa em 8 horas.
 - No máximo 5 sessões completas simultâneas por usuário; ao entrar uma nova, as mais antigas são revogadas. Não há tela para listar ou encerrar sessões individualmente.
 - Cookies HttpOnly e SameSite=Strict; POST exige origem permitida e cabeçalho específico.
-- Limites persistidos no PostgreSQL: login por conta/IP, segundo fator, cadastro e operações autenticadas.
+- Limites persistidos no PostgreSQL: login, segundo fator, cadastro e operações autenticadas. No login e no 2FA só as FALHAS contam (`guard`/`fail`/`reset`): acertar a senha zera o contador, e o contador da conta é por e-mail + IP, então quem erra a senha alheia tranca só o próprio IP, não o dono. Um teto global por e-mail (100 falhas) cobre o ataque distribuído. Repetir um código TOTP legítimo já usado não conta como falha.
 - Cadastro não recebe perfil; master nasce exclusivamente no provisionamento local e também exige 2FA.
 - Recuperação de senha: token aleatório de 256 bits, válido por 7 minutos, de uso único (`DELETE ... RETURNING`); só o hash fica no banco e um novo pedido invalida o anterior. A resposta ao pedido é igual para contas existentes ou não, com limite por IP e por e-mail. O token viaja no fragmento da URL (não vai ao servidor nem a logs de acesso) e é removido da barra de endereço ao ser lido. Redefinir a senha encerra todas as sessões e não desativa o 2FA. O envio é simulado (`DEMO_MAIL=true` escreve o link no log da API); um provedor real implementaria `MailProvider`.
 - Troca do autenticador exige senha e segundo fator/recuperação, revoga todas as sessões e bloqueia operações até a nova ativação.
@@ -317,6 +317,16 @@ Política desta demonstração: usar dados fictícios; manter dados somente dura
 - **Imagem de produção sem testes:** o `Dockerfile` da API tem o estágio `runtime` (só código compilado, dependências de execução e migrações) e o estágio `test` (runtime + `test/`), usado apenas pelo perfil `test` do compose.
 - **Frontend somente leitura:** o container `web` roda com sistema de arquivos `read_only`, `tmpfs` em `/tmp`, sem capacidades Linux e sem novos privilégios, como a API.
 - **CSP no gateway:** o HTML do Next sai com `Content-Security-Policy` restrita (`default-src 'self'`, sem `object`, sem frames, tiles só do OpenStreetMap). `'unsafe-inline'` permanece em script/style por causa da hidratação do Next e de Leaflet/SweetAlert2; trocar por nonce exigiria renderização dinâmica. HSTS não é enviado em HTTP; deve ser ligado junto com o HTTPS.
+
+## Correções da revisão de código
+
+- **Respostas que não revelam contas:** o cadastro devolve a mesma resposta para e-mail novo e já cadastrado; o pedido de link de senha tem duração mínima fixa (300 ms) e o e-mail sai fora da requisição, então nem o corpo nem o tempo distinguem os dois casos.
+- **Tentativas do código Pix:** o contador é gravado na mesma transação que trava a chave, então palpites simultâneos entram em fila e o teto de 5 vale de verdade.
+- **Rosto na redefinição:** o limite de tentativas é contado antes de abrir a transação (outra conexão do pool), evitando esgotar o pool com várias redefinições simultâneas.
+- **Leituras não escrevem:** a trilha de acesso calcula o encerramento por vencimento na própria consulta (`EFFECTIVE_END`) e a linha é fechada de fato no próximo login; `POST /auth/setup` substitui o GET que criava o segredo.
+- **Erros com código estável:** a API envia `code` (ex.: `session_expired`) nos 401 de sessão, e o frontend decide com ele, não com o texto da mensagem.
+- **TOTP (RFC 6238, 5.2):** um código do próximo intervalo é aceito e grava esse intervalo; o do intervalo atual só volta a valer quando ele chegar. É o preço de impedir a repetição de um código espiado, e a repetição não gasta o limite de falhas.
+- **Um documento, um usuário:** o CPF/CNPJ do titular passa a ser único por usuário e por pessoa (o primeiro a cadastrá-lo), o que impede de declarar o CPF de outra pessoa em uma segunda conta. A prova de que o documento é mesmo do usuário é o KYC do onboarding, que esta demonstração não tem.
 
 ## Limitações deliberadas
 

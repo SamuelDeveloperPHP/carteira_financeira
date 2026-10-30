@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-  UnauthorizedException,
-} from "@nestjs/common";
+import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { AuditService } from "../common/audit/audit.service";
 import {
@@ -25,12 +21,17 @@ import {
   token,
 } from "../common/security/crypto";
 import { location } from "../common/security/validation";
+import { SESSION_EXPIRED } from "../common/http/error-codes";
 import { AccessLogRepository } from "../access/access-log.repository";
 import { SettingsService } from "../settings/settings.service";
 import { UsersRepository } from "../users/users.repository";
 import { LoginDto, RegisterDto, VerifyDto } from "./dto/auth.dto";
 import { SessionsRepository } from "./sessions.repository";
-import { TwoFactorService } from "./two-factor.service";
+import { TotpReplayException, TwoFactorService } from "./two-factor.service";
+
+/** Mesma resposta para e-mail novo e já cadastrado (sem enumeração de contas). */
+export const REGISTER_MESSAGE =
+  'Cadastro recebido. Se o e-mail ainda não tinha conta, ela foi criada com saldo zero: entre para configurar o autenticador. Se já tinha, use "Esqueci minha senha".';
 
 /**
  * Cadastro, login por senha, conclusão do segundo fator e logout.
@@ -94,16 +95,20 @@ export class AuthService {
       // 23505 = violação de UNIQUE no PostgreSQL (e-mail já cadastrado). Confiar
       // na restrição do banco, e não em "consultar antes de inserir", evita a
       // corrida em que dois cadastros simultâneos passam pela checagem.
-      if (e.code === "23505")
-        throw new ConflictException(
-          "Não foi possível criar a conta com os dados informados."
-        );
-      throw e;
+      // A resposta é IGUAL à de um cadastro novo: um 409 diria a quem digita
+      // e-mails alheios quais já são clientes. A recusa fica só na auditoria.
+      if (e.code !== "23505") throw e;
+      await this.audit.record(
+        "account.register",
+        null,
+        null,
+        auditContext(req),
+        {},
+        "denied",
+        "duplicate_email"
+      );
     }
-    return {
-      message:
-        "Conta criada com saldo zero. Entre para configurar seu autenticador.",
-    };
+    return { message: REGISTER_MESSAGE };
   }
 
   /**
@@ -123,8 +128,15 @@ export class AuthService {
     req.targetResource = user?.id || null;
     // 2) Dois limites independentes: por IP (barra um atacante varrendo contas)
     //    e por e-mail (barra tentativas contra uma conta vindas de vários IPs).
+    //    Só as FALHAS contam contra a conta: acertar a senha não gasta limite, e
+    //    o contador por conta é separado por IP, então quem erra a senha de
+    //    outra pessoa tranca só o próprio IP, não o dono. O teto global por
+    //    e-mail (100) cobre o ataque distribuído por muitos IPs.
+    const failKey = `login-fail:${dto.email}:${req.ip}`,
+      failAnyKey = `login-fail-any:${dto.email}`;
     await this.limiter.throttle(`login-ip:${req.ip}`, 50);
-    await this.limiter.throttle(`login-email:${dto.email}`, 10);
+    await this.limiter.guard(failKey, 10);
+    await this.limiter.guard(failAnyKey, 100);
     // 3) Confere a senha. Se o e-mail não existe, compara com um hash falso: o
     //    tempo de resposta é o mesmo, então não dá para descobrir quais e-mails
     //    estão cadastrados medindo a latência.
@@ -133,8 +145,12 @@ export class AuthService {
       user?.password_hash || (await this.dummyHash)
     );
     // Mesma mensagem para "e-mail inexistente" e "senha errada".
-    if (!user || !valid)
+    if (!user || !valid) {
+      await this.limiter.fail(failKey);
+      await this.limiter.fail(failAnyKey);
       throw new UnauthorizedException("Credenciais inválidas.");
+    }
+    await this.limiter.reset(failKey);
     req.actorId = user.id;
     // Preferência do usuário: com a geolocalização desligada, a localização que o
     // navegador enviou é DESCARTADA (nem a auditoria nem a trilha de acesso a guardam).
@@ -183,10 +199,16 @@ export class AuthService {
    */
   async session(raw: string | undefined): Promise<SessionUser> {
     if (!raw || !/^[a-f0-9]{64}$/.test(raw))
-      throw new UnauthorizedException("Entre para continuar.");
+      throw new UnauthorizedException({
+        message: "Entre para continuar.",
+        code: SESSION_EXPIRED,
+      });
     const session = await this.sessions.findActiveWithUser(digest(raw));
     if (!session)
-      throw new UnauthorizedException("Sessão expirada. Entre novamente.");
+      throw new UnauthorizedException({
+        message: "Sessão expirada. Entre novamente.",
+        code: SESSION_EXPIRED,
+      });
     return session;
   }
 
@@ -202,9 +224,28 @@ export class AuthService {
   async verify(dto: VerifyDto, req: AppRequest) {
     const auth = sessionOf(req);
     // Códigos de 6 dígitos têm só 1 milhão de combinações: sem limite de
-    // tentativas seriam adivinháveis por força bruta. Limites por conta e por IP.
-    await this.limiter.throttle(`2fa:${auth.user_id}`, 10);
+    // tentativas seriam adivinháveis por força bruta. Limites por conta e por
+    // IP. A conta só gasta o limite com FALHAS (e o zera ao acertar); repetir um
+    // código legítimo já usado não é palpite e não conta.
+    const failKey = `2fa:${auth.user_id}`;
+    await this.limiter.guard(failKey, 10);
     await this.limiter.throttle(`2fa-ip:${req.ip}`, 40);
+    try {
+      const result = await this.completeVerify(dto, auth, req);
+      await this.limiter.reset(failKey);
+      return result;
+    } catch (e) {
+      if (
+        e instanceof UnauthorizedException &&
+        !(e instanceof TotpReplayException)
+      )
+        await this.limiter.fail(failKey);
+      throw e;
+    }
+  }
+
+  /** Corpo transacional da etapa 2, separado para `verify` contar as falhas fora da transação. */
+  private completeVerify(dto: VerifyDto, auth: SessionUser, req: AppRequest) {
     return this.db.transaction(async tx => {
       // Trava usuário e sessão: duas verificações simultâneas não completam o
       // mesmo login duas vezes nem reutilizam o mesmo código.

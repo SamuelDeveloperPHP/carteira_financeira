@@ -35,6 +35,22 @@ export class RateLimitRepository {
     return rows[0].count;
   }
 
+  /** Quantas tentativas a janela da chave já registrou (0 se não há janela ou ela venceu). Não conta. */
+  async count(key: string): Promise<number> {
+    const { rows } = await this.db.pool.query(
+      "SELECT count FROM rate_limits WHERE key=$1 AND expires_at>now()",
+      [digest(key)]
+    );
+    return rows[0]?.count ?? 0;
+  }
+
+  /** Zera a janela da chave (usado quando a tentativa dá certo). */
+  async reset(key: string): Promise<void> {
+    await this.db.pool.query("DELETE FROM rate_limits WHERE key=$1", [
+      digest(key),
+    ]);
+  }
+
   /** Apaga as janelas já vencidas (o índice em expires_at evita varrer a tabela). */
   async purgeExpired(): Promise<number> {
     const result = await this.db.pool.query(

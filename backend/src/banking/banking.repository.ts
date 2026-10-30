@@ -205,11 +205,45 @@ export class BankingRepository {
     );
   }
 
-  /** Conta uma tentativa errada. Roda FORA da transação de confirmação para sobreviver ao erro lançado depois. */
-  async addProofAttempt(id: string) {
-    await this.db.pool.query(
+  /**
+   * Conta uma tentativa errada, na MESMA transação que travou a chave (FOR UPDATE):
+   * palpites simultâneos entram em fila e cada um enxerga o contador atualizado.
+   */
+  async addProofAttempt(q: Queryable, id: string) {
+    await q.query(
       "UPDATE pix_keys SET proof_attempts=proof_attempts+1 WHERE id=$1",
       [id]
+    );
+  }
+
+  /** Bloqueia, até o fim da transação, quem mexe neste texto (documento ou usuário): serializa cadastros concorrentes. */
+  async lockText(q: Queryable, text: string) {
+    await q.query("SELECT pg_advisory_xact_lock(hashtext($1))", [text]);
+  }
+
+  /** Documento (CPF/CNPJ) já usado nas contas do usuário, se houver. */
+  async ownDocument(q: Queryable, userId: string): Promise<string | undefined> {
+    return (
+      await q.query(
+        "SELECT holder_document FROM bank_accounts WHERE user_id=$1 LIMIT 1",
+        [userId]
+      )
+    ).rows[0]?.holder_document;
+  }
+
+  /** O documento já está vinculado a OUTRO usuário? */
+  async documentTakenByOther(
+    q: Queryable,
+    userId: string,
+    document: string
+  ): Promise<boolean> {
+    return (
+      ((
+        await q.query(
+          "SELECT 1 FROM bank_accounts WHERE holder_document=$1 AND user_id<>$2 LIMIT 1",
+          [document, userId]
+        )
+      ).rowCount ?? 0) > 0
     );
   }
 
