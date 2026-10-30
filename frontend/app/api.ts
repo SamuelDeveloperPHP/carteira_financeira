@@ -5,7 +5,10 @@
 export class ApiError extends Error {
   constructor(
     message: string,
-    public status: number
+    public status: number,
+    // Código estável (opcional) enviado pela API; decide o comportamento da
+    // tela sem depender do texto da mensagem, que é para pessoas.
+    public code?: string
   ) {
     super(message);
   }
@@ -39,6 +42,10 @@ export async function api<T = any>(
     .json()
     .catch(() => ({ message: "Serviço indisponível. Tente novamente." }));
   if (!r.ok)
-    throw new ApiError(data.message || "Não foi possível concluir.", r.status);
+    throw new ApiError(
+      data.message || "Não foi possível concluir.",
+      r.status,
+      data.code
+    );
   return data;
 }

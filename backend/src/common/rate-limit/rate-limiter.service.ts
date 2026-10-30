@@ -11,6 +11,9 @@ import { RateLimitRepository } from "./rate-limit.repository";
  * Janela fixa é simples e previsível; a contrapartida é permitir uma rajada na
  * virada da janela, aceitável para este uso.
  */
+const tooMany = () =>
+  new HttpException("Muitas tentativas. Tente novamente em 15 minutos.", 429);
+
 @Injectable()
 export class RateLimiter {
   constructor(private readonly hits: RateLimitRepository) {}
@@ -20,11 +23,24 @@ export class RateLimiter {
    * também é contada: insistir não "abre" a janela mais cedo.
    */
   async throttle(key: string, limit: number, seconds = 900) {
-    if ((await this.hits.hit(key, seconds)) > limit)
-      throw new HttpException(
-        "Muitas tentativas. Tente novamente em 15 minutos.",
-        429
-      );
+    if ((await this.hits.hit(key, seconds)) > limit) throw tooMany();
+  }
+  /**
+   * Limite só de FALHAS: recusa (429) se a chave já acumulou `limit` falhas na
+   * janela, sem contar esta consulta. Quem chama conta a falha com `fail` e zera
+   * com `reset` quando a tentativa dá certo. Assim, entrar com sucesso não gasta
+   * o limite e quem erra a senha de outra pessoa (sem ser ela) não a tranca fora.
+   */
+  async guard(key: string, limit: number) {
+    if ((await this.hits.count(key)) >= limit) throw tooMany();
+  }
+  /** Conta uma falha na janela da chave (par de `guard`). */
+  async fail(key: string, seconds = 900) {
+    await this.hits.hit(key, seconds);
+  }
+  /** Zera a janela da chave (par de `guard`): chamada quando a tentativa dá certo. */
+  async reset(key: string) {
+    await this.hits.reset(key);
   }
   /** Mesma contagem, mas devolve true/false em vez de lançar erro (usado no orçamento de auditoria anônima). */
   async allow(key: string, limit: number, seconds = 900) {

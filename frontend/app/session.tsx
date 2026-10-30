@@ -26,6 +26,9 @@ import { api, ApiError } from "./api";
 import type { User } from "./lib/types";
 import { setGeoHint } from "./profile/geo-hint";
 
+/** Código do 401 de sessão ausente ou vencida (ver backend/src/common/http/error-codes.ts). */
+const SESSION_EXPIRED = "session_expired";
+
 /** Página inicial de cada perfil, depois do login. */
 export const homeOf = (role: User["role"]) =>
   role === "master" ? "/contas" : "/relatorios";
@@ -87,8 +90,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       e instanceof ApiError &&
       e.status === 401 &&
       user &&
-      (e.message.startsWith("Sessão expirada") ||
-        e.message === "Entre para continuar.")
+      e.code === SESSION_EXPIRED
     ) {
       setUser(null);
       setStage("login");

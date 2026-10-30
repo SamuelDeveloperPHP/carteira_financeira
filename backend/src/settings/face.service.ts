@@ -107,9 +107,18 @@ export class FaceService {
   }
 
   /**
-   * Confere o rosto na redefinição de senha. Lança 403 se não conferir. Cada
-   * tentativa conta no limite (gravado fora da transação do chamador, então um
-   * rollback não devolve a tentativa).
+   * Conta uma tentativa de verificação facial no limite. Chame ANTES de abrir a
+   * transação da redefinição: o contador usa outra conexão do pool, e pedi-la
+   * enquanto se segura a da transação esgotaria o pool sob carga. Por ficar fora
+   * dela, um rollback também não devolve a tentativa.
+   */
+  async throttleVerify(userId: string) {
+    await this.limiter.throttle(`face-verify:${userId}`, FACE_ATTEMPTS);
+  }
+
+  /**
+   * Confere o rosto na redefinição de senha. Lança 403 se não conferir. O limite
+   * de tentativas é contado antes, por `throttleVerify`.
    */
   async assertMatch(
     userId: string,
@@ -117,7 +126,6 @@ export class FaceService {
     ctx: AuditContext,
     q?: Queryable
   ) {
-    await this.limiter.throttle(`face-verify:${userId}`, FACE_ATTEMPTS);
     const stored = await this.repo.template(userId, q);
     if (!stored)
       throw new ForbiddenException("Reconhecimento facial não confere.");

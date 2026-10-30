@@ -30,6 +30,17 @@ import { RotateDto } from "./dto/auth.dto";
 import { SessionsRepository } from "./sessions.repository";
 
 /**
+ * Código TOTP correto, porém de um intervalo já usado (ou anterior ao último
+ * aceito). Tem a mesma resposta 401, mas é um tipo próprio: repetir um código
+ * legítimo não é um palpite e por isso não gasta o limite de falhas do login.
+ */
+export class TotpReplayException extends UnauthorizedException {
+  constructor() {
+    super("Código inválido ou já utilizado. Aguarde o próximo código.");
+  }
+}
+
+/**
  * Segundo fator de autenticação (2FA).
  *
  * Usa TOTP (RFC 6238): o aplicativo autenticador do usuário (Google/Microsoft
@@ -133,10 +144,15 @@ export class TwoFactorService {
         : null;
     // Anti-reuso (replay): o intervalo precisa ser MAIOR que o último aceito.
     // Sem isso, um código espiado por cima do ombro valeria por até 90 segundos.
-    if (step === null || step <= Number(user.last_totp_step))
+    // Compromisso conhecido (RFC 6238, seção 5.2): com `window: 1`, um código do
+    // PRÓXIMO intervalo (celular com relógio adiantado) é aceito e grava esse
+    // intervalo; o código do intervalo atual passa a valer só quando ele chegar.
+    // Aceitar de novo permitiria repetir um código espiado.
+    if (step === null)
       throw new UnauthorizedException(
         "Código inválido ou já utilizado. Aguarde o próximo código."
       );
+    if (step <= Number(user.last_totp_step)) throw new TotpReplayException();
     await this.users.recordTotpStep(tx, user.id, step);
     return "totp";
   }

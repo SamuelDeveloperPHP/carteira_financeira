@@ -129,8 +129,10 @@ export class AuthController {
     };
   }
 
+  // POST e não GET: cria o segredo do autenticador na primeira chamada, e uma
+  // leitura (GET) não deve alterar estado nem escapar da checagem de origem.
   @Access("partial")
-  @Get("setup")
+  @Post("setup")
   setup(@Req() req: AppRequest) {
     return this.twoFactor.setup(req);
   }

@@ -93,6 +93,22 @@ export class BankingService {
     const id = randomUUID();
     try {
       await this.db.transaction(async tx => {
+        // Um usuário = um documento, e um documento = um usuário (o primeiro a
+        // cadastrá-lo). Sem isso, qualquer pessoa poderia declarar o CPF de outra
+        // como titular e registrar a chave dela. Os bloqueios serializam cadastros
+        // simultâneos. A prova real de quem é o titular é o KYC do onboarding, que
+        // esta demonstração não tem (ver ARQUITETURA.md).
+        await this.repo.lockText(tx, `holder:${userId}`);
+        await this.repo.lockText(tx, `holder:${holder}`);
+        const own = await this.repo.ownDocument(tx, userId);
+        if (own && own !== holder)
+          throw new UnprocessableEntityException(
+            "Use o mesmo CPF/CNPJ das suas outras contas."
+          );
+        if (await this.repo.documentTakenByOther(tx, userId, holder))
+          throw new ConflictException(
+            "Este documento já está vinculado a outro usuário."
+          );
         if ((await this.repo.countAccounts(tx, userId)) >= MAX_BANK_ACCOUNTS)
           throw new UnprocessableEntityException(
             `Limite de ${MAX_BANK_ACCOUNTS} contas bancárias atingido.`
@@ -262,12 +278,10 @@ export class BankingService {
           ok: false as const,
           reason: "Código expirado. Solicite um novo.",
         };
-      if (digest(dto.code) !== key.proof_hash)
-        return {
-          ok: false as const,
-          reason: "Código incorreto.",
-          attempt: key.id,
-        };
+      if (digest(dto.code) !== key.proof_hash) {
+        await this.repo.addProofAttempt(tx, key.id);
+        return { ok: false as const, reason: "Código incorreto." };
+      }
       const decision = await this.directory.confirm(key.protocol);
       if (decision.status !== "approved")
         return { ok: false as const, reason: "Chave recusada pelo diretório." };
@@ -284,12 +298,9 @@ export class BankingService {
       );
       return { ok: true as const };
     });
-    if (!outcome.ok) {
-      // A tentativa errada é gravada FORA da transação para não ser desfeita por ela.
-      if ("attempt" in outcome && outcome.attempt)
-        await this.repo.addProofAttempt(outcome.attempt);
-      throw new UnprocessableEntityException(outcome.reason);
-    }
+    // A tentativa errada já foi gravada (e confirmada) dentro da transação: o
+    // erro é lançado só depois do commit, então nada a desfaz.
+    if (!outcome.ok) throw new UnprocessableEntityException(outcome.reason);
     return { message: "Chave Pix aprovada." };
   }
 

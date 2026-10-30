@@ -8,6 +8,7 @@ import deposits from "../dist/wallet/deposits.service.js";
 import security from "../dist/common/security/crypto.js";
 import mail from "../dist/auth/mail/mail.provider.js";
 import pix from "../dist/banking/pix-directory.provider.js";
+import rateLimiter from "../dist/common/rate-limit/rate-limiter.service.js";
 import rateRepo from "../dist/common/rate-limit/rate-limit.repository.js";
 
 test("integração PostgreSQL: segurança, movimentações e auditoria", async t => {
@@ -108,8 +109,8 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
       { "X-Forwarded-For": ip }
     );
     assert.equal(login.status, 201);
-    const setup = await call("/auth/setup", "GET", undefined, login.cookie);
-    assert.equal(setup.status, 200);
+    const setup = await call("/auth/setup", "POST", {}, login.cookie);
+    assert.equal(setup.status, 201);
     const usedCode = security.totp(setup.data.secret).generate();
     const verified = await call(
       "/auth/verify",
@@ -151,6 +152,27 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
           })
         ).status,
         400
+      );
+      // Cadastro novo e e-mail já existente recebem a MESMA resposta (sem 409).
+      const fresh = await call("/auth/register", "POST", {
+        name: "Nova",
+        email: `nova-${suffix}@example.test`,
+        password: pass,
+      });
+      const again = await call("/auth/register", "POST", {
+        name: "Nova",
+        email: `nova-${suffix}@example.test`,
+        password: pass,
+      });
+      assert.equal(fresh.status, 201);
+      assert.equal(again.status, 201);
+      assert.deepEqual(again.data, fresh.data);
+      assert(
+        (
+          await owner.query(
+            "SELECT 1 FROM audit_events WHERE action='account.register' AND outcome='denied' AND reason='duplicate_email'"
+          )
+        ).rowCount > 0
       );
       a = await account("Alice");
       b = await account("Bruno");
@@ -715,6 +737,32 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
           });
           if (i === 10) assert.equal(r.status, 429);
         }
+        // O limite é por e-mail + IP: quem errou daquele IP não tranca o dono,
+        // que entra normalmente de outro endereço.
+        const owner2 = await call(
+          "/auth/login",
+          "POST",
+          { email: c.email, password: pass },
+          "",
+          undefined,
+          { "X-Forwarded-For": "192.0.2.77" }
+        );
+        assert.equal(owner2.status, 201);
+        // Entrar com sucesso não gasta o limite: bem mais que 10 logins corretos seguidos.
+        for (let i = 0; i < 12; i++)
+          assert.equal(
+            (
+              await call(
+                "/auth/login",
+                "POST",
+                { email: a.email, password: pass },
+                "",
+                undefined,
+                { "X-Forwarded-For": "192.0.2.88" }
+              )
+            ).status,
+            201
+          );
         assert(
           (
             await owner.query(
@@ -752,12 +800,7 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
           ).rowCount,
           0
         );
-        const setup = await call(
-          "/auth/setup",
-          "GET",
-          undefined,
-          rotated.cookie
-        );
+        const setup = await call("/auth/setup", "POST", {}, rotated.cookie);
         assert.notEqual(setup.data.secret, b.secret);
       }
     );
@@ -1059,6 +1102,34 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
           d.cookie
         );
         assert.equal(second2.status, 201);
+        // Um usuário = um documento: outro CPF na mesma pessoa é recusado, e o CPF
+        // de um usuário não pode ser usado como titular por outro.
+        assert.equal(
+          (
+            await call(
+              "/banking/accounts",
+              "POST",
+              {
+                ...accountBody,
+                holderDocument: "529.982.247-25",
+                accountNumber: "777777-7",
+              },
+              d.cookie
+            )
+          ).status,
+          422
+        );
+        assert.equal(
+          (
+            await call(
+              "/banking/accounts",
+              "POST",
+              { ...accountBody, accountNumber: "888888-8" },
+              other.cookie
+            )
+          ).status,
+          409
+        );
         const keysPath = `/banking/accounts/${created.data.id}/pix-keys`;
         const cpfKey = await call(
           keysPath,
@@ -1459,6 +1530,40 @@ test("integração PostgreSQL: segurança, movimentações e auditoria", async t
           left.rows.map(r => r.key),
           ["purge-live"]
         );
+      }
+    );
+    await t.test(
+      "limitador de falhas: conta só falha e zera ao acertar",
+      async () => {
+        const limiter = app.get(rateLimiter.RateLimiter);
+        const key = `teste-guard-${suffix}`;
+        for (let i = 0; i < 3; i++)
+          (await limiter.guard(key, 3), await limiter.fail(key));
+        await assert.rejects(limiter.guard(key, 3), e => e.getStatus() === 429);
+        await limiter.reset(key);
+        await limiter.guard(key, 3);
+      }
+    );
+    await t.test(
+      "consultas de acesso não gravam: sessão vencida aparece encerrada sem alterar a linha",
+      async () => {
+        const id = randomUUID();
+        await owner.query(
+          "INSERT INTO access_log(id,user_id,token_hash,started_at,expires_at,ip,device) VALUES($1,$2,$3,now()-interval '10 minutes',now()-interval '5 minutes','198.51.100.9','teste')",
+          [id, a.id, "f".repeat(64)]
+        );
+        const list = await call("/access", "GET", undefined, a.cookie);
+        const item = list.data.items.find(i => i.id === id);
+        assert.equal(item.active, false);
+        assert.equal(item.endReason, "expired");
+        assert(item.endedAt);
+        assert(Math.abs(item.durationSeconds - 300) <= 2);
+        // A consulta não gravou nada: a linha continua aberta no banco.
+        const row = await owner.query(
+          "SELECT ended_at FROM access_log WHERE id=$1",
+          [id]
+        );
+        assert.equal(row.rows[0].ended_at, null);
       }
     );
     await t.test("logout revoga a sessão no servidor", async () => {

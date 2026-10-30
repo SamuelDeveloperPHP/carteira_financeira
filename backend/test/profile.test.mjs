@@ -104,7 +104,7 @@ function banking() {
         { status: "approved", proof_hash: null }
       );
     },
-    addProofAttempt: async id => {
+    addProofAttempt: async (_q, id) => {
       state.keys.find(k => k.id === id).proof_attempts++;
     },
     renewProof: async (_q, id, hash) => {

@@ -1,4 +1,5 @@
 import { UnauthorizedException } from "@nestjs/common";
+import { SESSION_EXPIRED } from "./error-codes";
 import type { Request } from "express";
 
 export type Role = "user" | "master";
@@ -44,6 +45,10 @@ export interface AppRequest extends Request {
  * requisição, que o cliente poderia forjar.
  */
 export function sessionOf(req: AppRequest): SessionUser {
-  if (!req.auth) throw new UnauthorizedException("Entre para continuar.");
+  if (!req.auth)
+    throw new UnauthorizedException({
+      message: "Entre para continuar.",
+      code: SESSION_EXPIRED,
+    });
   return req.auth;
 }

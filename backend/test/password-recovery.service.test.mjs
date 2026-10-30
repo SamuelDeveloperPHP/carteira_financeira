@@ -41,6 +41,7 @@ function setup() {
     },
   };
   const resets = {
+    peek: async (_q, hash) => state.resets.get(hash)?.userId,
     issue: async (_q, userId, hash, minutes) => {
       for (const [h, r] of state.resets)
         if (r.userId === userId) state.resets.delete(h);
@@ -74,6 +75,7 @@ function setup() {
   const faces = {
     required: false,
     isRequired: async () => faces.required,
+    throttleVerify: async () => {},
     assertMatch: async (_u, candidate) => {
       if (candidate !== "rosto-certo")
         throw Object.assign(new Error("x"), { getStatus: () => 403 });

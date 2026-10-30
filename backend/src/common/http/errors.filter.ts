@@ -38,7 +38,18 @@ export class ErrorsFilter implements ExceptionFilter {
         ? error.message
         : "Não foi possível concluir. Tente novamente usando a mesma solicitação.";
     const actor = req.auth?.user_id || req.actorId || null;
-    const body = { message, correlationId: req.correlationId };
+    // Código estável (opcional) para o cliente decidir sem ler o texto da mensagem.
+    const response =
+      error instanceof HttpException ? error.getResponse() : null;
+    const code =
+      response && typeof response === "object"
+        ? (response as { code?: string }).code
+        : undefined;
+    const body = {
+      message,
+      ...(code ? { code } : {}),
+      correlationId: req.correlationId,
+    };
     try {
       if (
         !actor &&

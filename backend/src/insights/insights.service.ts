@@ -117,8 +117,10 @@ export class InsightsService {
         sentCount: sent.count,
         biggestOut: sent.biggest,
         topOutflow:
-          topOut && topOut.sent > 0 && sent.total > 0
-            ? { name: topOut.name, share: topOut.sent / sent.total }
+          // Mesma base nos dois lados: o `sent` da contraparte soma transferências
+          // E devoluções enviadas, então o total de saídas também as inclui.
+          topOut && topOut.sent > 0 && expense > 0
+            ? { name: topOut.name, share: topOut.sent / expense }
             : null,
         refundsSent: refundsSent.count,
         refundsReceived: refundsReceived.count,

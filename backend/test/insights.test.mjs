@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import rules from "../dist/insights/insights.rules.js";
+import service from "../dist/insights/insights.service.js";
 
 const base = {
   days: 30,
@@ -96,4 +97,31 @@ test("devoluções feitas e recebidas são informadas", () => {
   assert(
     ids(list).includes("refunds-sent") && ids(list).includes("refunds-received")
   );
+});
+
+test("a participação do maior destino usa a mesma base (transferências e devoluções enviadas)", async () => {
+  // Enviou R$ 100,00 em 3 transferências e devolveu R$ 50,00 à mesma pessoa:
+  // 100% das saídas foram para Ana, nunca 150%.
+  const repo = {
+    balance: async () => "10000",
+    byKind: async () => [
+      {
+        kind: "transfer",
+        incoming: false,
+        n: 3,
+        total: "10000",
+        biggest: "5000",
+      },
+      { kind: "refund", incoming: false, n: 1, total: "5000", biggest: "5000" },
+    ],
+    series: async () => [],
+    counterparts: async () => [
+      { id: "ana", name: "Ana", received: "0", sent: "15000", n: 4 },
+    ],
+  };
+  const out = await new service.InsightsService(repo).overview("u1");
+  const s = out.suggestions.find(x => x.id === "concentration");
+  assert(s, "esperava a sugestão de concentração");
+  assert.match(s.message, /Ana recebeu 100%/);
+  assert(out.suggestions.every(x => !/1[1-9]\d%/.test(x.message)));
 });

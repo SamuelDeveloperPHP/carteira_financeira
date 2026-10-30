@@ -70,7 +70,7 @@ export default function Entry() {
   // Estágio "setup" (primeiro acesso ou troca do autenticador): busca o QR code.
   useEffect(() => {
     if (ready && !user && stage === "setup" && !enrollment)
-      work(async () => setEnrollment(await api("/auth/setup")));
+      work(async () => setEnrollment(await api("/auth/setup", "POST", {})));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, user, stage]);
 
@@ -83,13 +83,16 @@ export default function Entry() {
     e.preventDefault();
     await work(async () => {
       if (register) {
-        await api("/auth/register", "POST", { name, email, password });
+        // A resposta é a mesma para e-mail novo e já cadastrado (a API não
+        // revela quais e-mails são clientes); a mensagem vem dela.
+        const r = await api<{ message: string }>("/auth/register", "POST", {
+          name,
+          email,
+          password,
+        });
         setRegister(false);
         setPassword("");
-        notify(
-          "success",
-          "Conta criada com saldo zero. Entre para configurar o autenticador."
-        );
+        notify("success", r.message);
         return;
       }
       const location = await locate();
@@ -379,7 +382,7 @@ export default function Entry() {
                       className="btn btn-outline-secondary"
                       onClick={() =>
                         work(async () =>
-                          setEnrollment(await api("/auth/setup"))
+                          setEnrollment(await api("/auth/setup", "POST", {}))
                         )
                       }
                     >
