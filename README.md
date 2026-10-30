@@ -64,4 +64,6 @@ Os testes usam banco separado `carteira_test`; os dados da demonstração ficam 
 - [Contrato da API e exemplos](docs/API.md)
 - [Arquitetura, segurança e limitações](docs/ARQUITETURA.md)
 - [Roteiro de demonstração e validação](docs/ENTREGA.md)
+- [Roteiro da demonstração ao vivo](desafio/DEMONSTRACAO.md)
+- [Monitoramento e logging](desafio/MONITORAMENTO.md)
 - [Backlog](BACKLOG.md)
